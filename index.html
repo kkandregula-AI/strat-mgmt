@@ -65,7 +65,7 @@ main{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:28px 24p
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-@media(max-width:768px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+@media(max-width:768px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}#token-widget{grid-template-columns:repeat(3,1fr)!important}}
 
 /* INPUTS */
 input[type=text],input[type=number],textarea,select{
@@ -524,14 +524,38 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 
 </main>
 
+<!-- TOKEN INTELLIGENCE — built into footer, no floating overlay -->
+
 <div id="toast"></div>
 
-<footer style="position:relative;z-index:10;text-align:center;padding:20px 24px;border-top:1px solid rgba(201,168,76,0.25);margin-top:40px;background:#0a0f1e">
-  <div style="font-family:'DM Sans',sans-serif;font-size:0.82rem;color:#7a88a8;letter-spacing:0.3px;line-height:1.8">
-    Designed &amp; Architected by
-    <span style="color:#c9a84c;font-weight:600"> Krishnamurthy Kandregula</span>
-    &nbsp;&nbsp;·&nbsp;&nbsp;
-    Made by <span style="color:#e8c96a;font-weight:600">Claude</span>
+<footer style="position:relative;z-index:10;background:#0a0f1e;border-top:1px solid rgba(201,168,76,0.25);margin-top:40px">
+
+  <!-- Token Intelligence Bar -->
+  <div style="border-bottom:1px solid rgba(255,255,255,0.05);padding:14px 24px">
+    <div style="max-width:1200px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green)" id="cache-dot"></div>
+          <span style="font-family:var(--font-mono);font-size:0.65rem;color:var(--gold2);letter-spacing:1.5px;text-transform:uppercase">Token Intelligence Engine</span>
+        </div>
+        <span class="tag tag-cyan" style="font-size:0.58rem" id="calls-badge">0 Calls</span>
+        <button onclick="TOKEN.session={inputTokens:0,outputTokens:0,cacheWrite:0,cacheRead:0,calls:0,savedTokens:0};TOKEN.renderWidget()" style="background:none;border:1px solid rgba(255,255,255,0.08);color:var(--text3);font-size:0.6rem;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);margin-left:auto">Reset</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px" id="token-widget">
+        <!-- filled by TOKEN.renderWidget() -->
+        <div style="grid-column:1/-1;font-family:var(--font-mono);font-size:0.7rem;color:var(--text3);text-align:center;padding:4px 0">Make an AI call to see live token metrics</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Credit line -->
+  <div style="padding:14px 24px;text-align:center">
+    <div style="font-family:'DM Sans',sans-serif;font-size:0.78rem;color:#7a88a8;letter-spacing:0.3px">
+      Designed &amp; Architected by
+      <span style="color:#c9a84c;font-weight:600"> Krishnamurthy Kandregula</span>
+      &nbsp;&nbsp;·&nbsp;&nbsp;
+      Made by <span style="color:#e8c96a;font-weight:600">Claude</span>
+    </div>
   </div>
 </footer>
 
@@ -857,6 +881,13 @@ const TOKEN = {
     // Tokens saved = cache reads that would have been full input tokens
     s.savedTokens  += usage.cache_read_input_tokens     || 0;
     TOKEN.renderWidget();
+    // Pulse the status dot — gold on write, green on hit
+    const dot = document.getElementById('cache-dot');
+    if(dot){
+      const hit = (usage.cache_read_input_tokens||0) > 0;
+      dot.style.background = hit ? 'var(--green)' : 'var(--gold)';
+      dot.style.boxShadow  = hit ? '0 0 8px var(--green)' : '0 0 8px var(--gold)';
+    }
   },
 
   costUSD() {
@@ -871,49 +902,36 @@ const TOKEN = {
 
   renderWidget() {
     const w = document.getElementById('token-widget');
+    const badge = document.getElementById('calls-badge');
     if(!w) return;
     const s = TOKEN.session, { cost, saved } = TOKEN.costUSD();
     const hitRate = s.cacheRead+s.cacheWrite > 0
       ? Math.round((s.cacheRead/(s.cacheRead+s.cacheWrite))*100) : 0;
-    w.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span style="font-family:var(--font-head);font-size:0.72rem;color:var(--gold2);letter-spacing:1px">TOKEN INTELLIGENCE</span>
-        <span class="tag tag-cyan" style="font-size:0.6rem">${s.calls} CALL${s.calls!==1?'S':''}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
-        <div style="background:rgba(0,0,0,0.3);border-radius:6px;padding:7px">
-          <div style="font-size:0.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Input</div>
-          <div style="font-family:var(--font-mono);font-size:0.9rem;color:var(--text)">${TOKEN.fmt(s.inputTokens)}</div>
-        </div>
-        <div style="background:rgba(0,0,0,0.3);border-radius:6px;padding:7px">
-          <div style="font-size:0.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Output</div>
-          <div style="font-family:var(--font-mono);font-size:0.9rem;color:var(--text)">${TOKEN.fmt(s.outputTokens)}</div>
-        </div>
-        <div style="background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);border-radius:6px;padding:7px">
-          <div style="font-size:0.6rem;color:var(--green);text-transform:uppercase;letter-spacing:.5px">Cache Read</div>
-          <div style="font-family:var(--font-mono);font-size:0.9rem;color:var(--green)">${TOKEN.fmt(s.cacheRead)}</div>
-        </div>
-        <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:6px;padding:7px">
-          <div style="font-size:0.6rem;color:var(--gold);text-transform:uppercase;letter-spacing:.5px">Cache Write</div>
-          <div style="font-family:var(--font-mono);font-size:0.9rem;color:var(--gold2)">${TOKEN.fmt(s.cacheWrite)}</div>
-        </div>
-      </div>
-      <div style="background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.2);border-radius:8px;padding:8px;margin-bottom:6px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-          <span style="font-size:0.68rem;color:var(--green)">Cache Hit Rate</span>
-          <span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--green)">${hitRate}%</span>
-        </div>
-        <div style="background:rgba(0,0,0,0.3);border-radius:20px;height:4px">
+    if(badge) badge.textContent = `${s.calls} Call${s.calls!==1?'s':''}`;
+
+    const cell = (label, value, color='var(--text)', sub='') => `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:8px 10px">
+        <div style="font-size:0.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px">${label}</div>
+        <div style="font-family:var(--font-mono);font-size:0.88rem;color:${color};font-weight:500">${value}</div>
+        ${sub?`<div style="font-size:0.58rem;color:var(--text3);margin-top:2px">${sub}</div>`:''}
+      </div>`;
+
+    w.innerHTML =
+      cell('Input Tokens', TOKEN.fmt(s.inputTokens)) +
+      cell('Output Tokens', TOKEN.fmt(s.outputTokens)) +
+      cell('Cache Write', TOKEN.fmt(s.cacheWrite), 'var(--gold2)') +
+      cell('Cache Read', TOKEN.fmt(s.cacheRead), 'var(--green)', '90% cheaper') +
+      `<div style="background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.15);border-radius:8px;padding:8px 10px">
+        <div style="font-size:0.58rem;color:var(--green);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Cache Hit Rate</div>
+        <div style="background:rgba(0,0,0,0.3);border-radius:20px;height:4px;margin-bottom:3px">
           <div style="height:4px;border-radius:20px;width:${hitRate}%;background:linear-gradient(90deg,#00b37a,var(--green));transition:width .5s"></div>
         </div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:2px">
-        <span style="color:var(--text3)">Session cost</span>
-        <span style="font-family:var(--font-mono);color:var(--text2)">$${cost.toFixed(4)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:0.7rem">
-        <span style="color:var(--green)">💰 Tokens saved</span>
-        <span style="font-family:var(--font-mono);color:var(--green)">${TOKEN.fmt(s.savedTokens)} (~$${saved.toFixed(4)})</span>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--green)">${hitRate}%</div>
+      </div>` +
+      `<div style="background:rgba(201,168,76,0.05);border:1px solid rgba(201,168,76,0.15);border-radius:8px;padding:8px 10px">
+        <div style="font-size:0.58rem;color:var(--gold);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px">💰 Saved</div>
+        <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--gold2)">${TOKEN.fmt(s.savedTokens)} tok</div>
+        <div style="font-size:0.58rem;color:var(--text3);margin-top:1px">~$${saved.toFixed(4)}</div>
       </div>`;
   }
 };
@@ -961,15 +979,7 @@ async function callClaude(systemPrompt, userMsg, outputId, callType='default'){
 
     const text = data.content.map(c=>c.text||'').join('');
     out.className='ai-output';
-
-    // Show cache status badge inside the output
-    const u = data.usage||{};
-    const cacheHit = (u.cache_read_input_tokens||0) > 0;
-    const cacheBadge = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:5px 10px;background:${cacheHit?'rgba(0,229,160,0.08)':'rgba(201,168,76,0.06)'};border:1px solid ${cacheHit?'rgba(0,229,160,0.25)':'rgba(201,168,76,0.2)'};border-radius:6px;font-size:0.68rem;font-family:var(--font-mono)">
-      <span style="color:${cacheHit?'var(--green)':'var(--gold)'};">${cacheHit?'⚡ Cache HIT':'✦ Cache WRITE'}</span>
-      <span style="color:var(--text3)">In:${u.input_tokens||0} · Out:${u.output_tokens||0} · CacheRead:${u.cache_read_input_tokens||0} · CacheWrite:${u.cache_creation_input_tokens||0} · Budget:${maxTok}</span>
-    </div>`;
-    out.innerHTML = cacheBadge + marked(text);
+    out.innerHTML = marked(text);
   }catch(e){
     out.className='ai-output';
     out.innerHTML=`<span style="color:var(--red)">Request failed. Check your API key and network.</span>`;
@@ -1742,18 +1752,54 @@ async function exportPDF(){
         doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(...WHITE);
         doc.text('Claude AI', PW-M-10.5, y+6, {align:'center'});
         y += 14;
-        const rawText = section.el.innerText.trim().replace(/\n{3,}/g,'\n\n');
-        const lines = doc.splitTextToSize(rawText, CW);
-        const neededH = lines.length * 4.2 + 6;
+
+        // Clean text: strip HTML tags, normalise whitespace, remove any cache badge lines
+        const rawHTML = section.el.innerHTML || '';
+        const tmp = document.createElement('div');
+        tmp.innerHTML = rawHTML;
+        // Remove cache-badge divs (they have font-mono styling)
+        tmp.querySelectorAll('div').forEach(d=>{
+          if(d.style && d.style.fontFamily && d.style.fontFamily.includes('mono')) d.remove();
+        });
+        const rawText = (tmp.innerText||tmp.textContent||'')
+          .replace(/Cache (HIT|WRITE)[^\n]*/gi,'')  // strip any remaining cache lines
+          .replace(/In:\d+[^\n]*/gi,'')
+          .replace(/\n{3,}/g,'\n\n')
+          .trim();
+
+        // Split into lines, enforce uniform 8pt font throughout
+        const BODY_SIZE = 8;
+        const LINE_H    = 4.4;
+        const lines = doc.splitTextToSize(rawText, CW - 10);
+        const neededH = lines.length * LINE_H + 10;
+
         doc.setFillColor(245,250,252);
         doc.roundedRect(M, y, CW, Math.min(neededH, PH-y-20), 2,2,'F');
-        doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(30,45,80);
-        let ty2 = y+6;
+
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(BODY_SIZE);
+        doc.setTextColor(30,45,80);
+
+        let ty2 = y + 7;
         for(const line of lines){
-          if(ty2 > PH-22){ addPageFooter(); newPage(); sectionHeader('AI Intelligence (continued)'); y=30; ty2=36;
-            doc.setFillColor(245,250,252); doc.roundedRect(M,y,CW,PH-y-20,2,2,'F'); }
+          if(ty2 > PH-22){
+            addPageFooter();
+            newPage();
+            sectionHeader('AI Intelligence (continued)');
+            y = 30;
+            doc.setFillColor(245,250,252);
+            doc.roundedRect(M, y, CW, PH-y-20, 2,2,'F');
+            ty2 = y + 7;
+            // Re-apply font after new page (jsPDF resets on newPage)
+            doc.setFont('helvetica','normal');
+            doc.setFontSize(BODY_SIZE);
+            doc.setTextColor(30,45,80);
+          }
+          // Headings (lines starting with ##/bold markers) — slightly bolder but same size
+          const isHeading = /^[•\-]/.test(line.trim());
+          doc.setFont('helvetica', isHeading ? 'normal' : 'normal');
           doc.text(line, M+5, ty2);
-          ty2 += 4.2;
+          ty2 += LINE_H;
         }
         y = ty2 + 8;
       });
