@@ -1716,95 +1716,175 @@ async function exportPDF(){
     }
 
     // ══════════════════════════════════════════════════
-    // PAGE 9 — AI NARRATIVE (if present)
+    // PAGE 9 — AI-GENERATED INTELLIGENCE (all sections, always)
     // ══════════════════════════════════════════════════
+    newPage();
+    sectionHeader('AI-Generated Intelligence', 'Insights powered by Claude · Anthropic');
+    y = 30;
+
+    // ── helper: clean HTML element → plain text ─────
+    function cleanElText(el){
+      if(!el) return '';
+      const tmp = document.createElement('div');
+      tmp.innerHTML = el.innerHTML || '';
+      tmp.querySelectorAll('div,span').forEach(d=>{
+        if(d.style && (d.style.fontFamily||'').includes('mono')) d.remove();
+      });
+      return (tmp.innerText||tmp.textContent||'')
+        .replace(/Cache (HIT|WRITE)[^\n]*/gi,'')
+        .replace(/In:\d+[^\n]*/gi,'')
+        .replace(/\n{3,}/g,'\n\n')
+        .trim();
+    }
+
+    // ── helper: write one AI section block ──────────
+    function writeAIBlock(title, textContent, hasContent){
+      const BODY_SIZE = 8, LINE_H = 4.4;
+      if(y > PH - 55){ addPageFooter(); newPage(); sectionHeader('AI Intelligence (continued)',''); y = 30; }
+
+      // Section header chip
+      doc.setFillColor(...NAVY);
+      doc.roundedRect(M, y, CW, 10, 2, 2, 'F');
+      doc.setFillColor(...GOLD); doc.rect(M, y, 3, 10, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...GOLD2);
+      doc.text(title, M+7, y+6.5);
+      // Status badge — green if content, grey if not run
+      const badgeClr = hasContent ? [0,150,120] : [100,110,140];
+      const badgeLabel = hasContent ? 'Claude AI' : 'Not Run';
+      doc.setFillColor(...badgeClr);
+      doc.roundedRect(PW-M-20, y+2, 17, 6, 1, 1, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(...WHITE);
+      doc.text(badgeLabel, PW-M-11.5, y+6, {align:'center'});
+      y += 13;
+
+      if(!hasContent){
+        // Placeholder block
+        doc.setFillColor(248,248,252);
+        doc.roundedRect(M, y, CW, 14, 2, 2, 'F');
+        doc.setDrawColor(210,215,230); doc.setLineWidth(0.3);
+        doc.roundedRect(M, y, CW, 14, 2, 2, 'S');
+        doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(160,170,200);
+        doc.text('This analysis was not generated during the session. Open the app and click the AI button in this module to generate insights.', M+8, y+5.5, {maxWidth: CW-16});
+        y += 20;
+        return;
+      }
+
+      // Content block
+      const lines = doc.splitTextToSize(textContent, CW - 10);
+      let ty = y + 7;
+      doc.setFillColor(245,250,252);
+      doc.roundedRect(M, y, CW, Math.min(lines.length * LINE_H + 10, PH - y - 20), 2, 2, 'F');
+      doc.setFont('helvetica','normal'); doc.setFontSize(BODY_SIZE); doc.setTextColor(30,45,80);
+
+      for(const line of lines){
+        if(ty > PH - 22){
+          addPageFooter(); newPage(); sectionHeader('AI Intelligence (continued)',''); y = 30;
+          doc.setFillColor(245,250,252);
+          doc.roundedRect(M, y, CW, PH-y-20, 2, 2, 'F');
+          ty = y + 7;
+          doc.setFont('helvetica','normal'); doc.setFontSize(BODY_SIZE); doc.setTextColor(30,45,80);
+        }
+        doc.text(line, M+5, ty);
+        ty += LINE_H;
+      }
+      y = ty + 8;
+    }
+
+    // ── Write all 6 module AI sections ──────────────
     const narrativeEl = document.getElementById('narrative-output');
-    const swotAI = document.getElementById('swot-ai-output');
-    const pestleAI = document.getElementById('pestle-ai-output');
-    const kpiAI = document.getElementById('kpi-ai-output');
-    const riskAI = document.getElementById('risk-ai-output');
-    const advisorEl = document.getElementById('advisor-output');
+    const swotAI      = document.getElementById('swot-ai-output');
+    const pestleAI    = document.getElementById('pestle-ai-output');
+    const kpiAI       = document.getElementById('kpi-ai-output');
+    const riskAI      = document.getElementById('risk-ai-output');
 
-    const aiSections = [
-      {title:'AI Strategic Narrative', el:narrativeEl},
-      {title:'AI SWOT Synthesis', el:swotAI},
-      {title:'AI PESTLE Synthesis', el:pestleAI},
-      {title:'AI KPI Health Report', el:kpiAI},
-      {title:'AI Risk Mitigation Plan', el:riskAI},
-      {title:'AI Advisor — Latest Insight', el:advisorEl}
-    ].filter(s=>s.el && s.el.style.display!=='none' && s.el.innerText.trim().length>20);
+    const moduleSections = [
+      { title:'AI Strategic Narrative',  el: narrativeEl },
+      { title:'AI SWOT Synthesis',       el: swotAI      },
+      { title:'AI PESTLE Synthesis',     el: pestleAI    },
+      { title:'AI KPI Health Report',    el: kpiAI       },
+      { title:'AI Risk Mitigation Plan', el: riskAI      },
+    ];
 
-    if(aiSections.length){
-      newPage();
-      sectionHeader('AI-Generated Intelligence', 'Insights powered by Claude · Anthropic');
-      y = 30;
-      aiSections.forEach((section,si)=>{
-        if(y > PH-55){ newPage(); sectionHeader('AI Intelligence (continued)'); y=30; }
-        // Section chip
-        doc.setFillColor(...NAVY);
-        doc.roundedRect(M, y, CW, 10, 2,2,'F');
-        doc.setFillColor(...GOLD); doc.rect(M, y, 3, 10, 'F');
-        doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...GOLD2);
-        doc.text(section.title, M+7, y+6.5);
-        // AI badge
-        doc.setFillColor(0,150,120);
-        doc.roundedRect(PW-M-18, y+2, 15, 6, 1,1,'F');
-        doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(...WHITE);
-        doc.text('Claude AI', PW-M-10.5, y+6, {align:'center'});
-        y += 14;
+    moduleSections.forEach(sec => {
+      const text = cleanElText(sec.el);
+      const hasContent = text.length > 20;
+      writeAIBlock(sec.title, text, hasContent);
+    });
 
-        // Clean text: strip HTML tags, normalise whitespace, remove any cache badge lines
-        const rawHTML = section.el.innerHTML || '';
-        const tmp = document.createElement('div');
-        tmp.innerHTML = rawHTML;
-        // Remove cache-badge divs (they have font-mono styling)
-        tmp.querySelectorAll('div').forEach(d=>{
-          if(d.style && d.style.fontFamily && d.style.fontFamily.includes('mono')) d.remove();
+    // ══════════════════════════════════════════════════
+    // PAGE — FULL AI ADVISOR CONVERSATION HISTORY
+    // ══════════════════════════════════════════════════
+    addPageFooter();
+    newPage();
+    sectionHeader('AI Advisor — Full Conversation', 'Complete advisory session transcript');
+    y = 30;
+
+    if(!state.advisorHistory.length){
+      // Placeholder if no advisor session
+      doc.setFillColor(248,248,252);
+      doc.roundedRect(M, y, CW, 18, 2, 2, 'F');
+      doc.setDrawColor(210,215,230); doc.setLineWidth(0.3);
+      doc.roundedRect(M, y, CW, 18, 2, 2, 'S');
+      doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(160,170,200);
+      doc.text('No advisor session was recorded. Open the AI Advisor tab and ask a question to generate strategic insights.', M+8, y+7, {maxWidth: CW-16});
+      doc.text('You can use the quick-prompt buttons (Gap Analysis, 90-Day Plan, Porter\'s 5 Forces, etc.) or type a custom question.', M+8, y+13, {maxWidth: CW-16});
+      y += 24;
+    } else {
+      const BODY_SIZE = 8, LINE_H = 4.4;
+      state.advisorHistory.forEach((turn, ti) => {
+        if(y > PH - 45){ addPageFooter(); newPage(); sectionHeader('AI Advisor — Conversation (continued)',''); y = 30; }
+
+        const isUser = turn.role === 'user';
+        const bgColor  = isUser ? [255,252,240]  : [240,250,255];
+        const barColor = isUser ? GOLD            : CYAN;
+        const labelTxt = isUser ? `YOU  ·  ${turn.ts}` : `STRATOS AI  ·  ${turn.ts}`;
+        const labelClr = isUser ? GOLD            : CYAN;
+
+        // Strip HTML from AI turns
+        const tmp2 = document.createElement('div');
+        tmp2.innerHTML = turn.q || '';
+        tmp2.querySelectorAll('div,span').forEach(d=>{
+          if(d.style && (d.style.fontFamily||'').includes('mono')) d.remove();
         });
-        const rawText = (tmp.innerText||tmp.textContent||'')
-          .replace(/Cache (HIT|WRITE)[^\n]*/gi,'')  // strip any remaining cache lines
+        const turnText = (isUser ? (turn.q||'') : (tmp2.innerText||tmp2.textContent||''))
+          .replace(/Cache (HIT|WRITE)[^\n]*/gi,'')
           .replace(/In:\d+[^\n]*/gi,'')
           .replace(/\n{3,}/g,'\n\n')
           .trim();
 
-        // Split into lines, enforce uniform 8pt font throughout
-        const BODY_SIZE = 8;
-        const LINE_H    = 4.4;
-        const lines = doc.splitTextToSize(rawText, CW - 10);
-        const neededH = lines.length * LINE_H + 10;
+        const lines = doc.splitTextToSize(turnText, CW - 14);
+        const blockH = Math.min(lines.length * LINE_H + 14, PH - y - 20);
 
-        doc.setFillColor(245,250,252);
-        doc.roundedRect(M, y, CW, Math.min(neededH, PH-y-20), 2,2,'F');
+        // Turn bubble
+        doc.setFillColor(...bgColor);
+        doc.roundedRect(M, y, CW, blockH, 2, 2, 'F');
+        doc.setFillColor(...barColor); doc.rect(M, y, 3, blockH, 'F');
 
-        doc.setFont('helvetica','normal');
-        doc.setFontSize(BODY_SIZE);
-        doc.setTextColor(30,45,80);
+        // Label
+        doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...labelClr);
+        doc.text(labelTxt, M+7, y+5.5);
 
-        let ty2 = y + 7;
+        // Turn index badge
+        doc.setFillColor(...barColor.map(v=>Math.min(255,v+150)));
+        doc.roundedRect(PW-M-14, y+1.5, 11, 5, 1, 1, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(5.5); doc.setTextColor(...barColor);
+        doc.text(`#${Math.floor(ti/2)+1}`, PW-M-8.5, y+5.2, {align:'center'});
+
+        // Body text
+        doc.setFont('helvetica','normal'); doc.setFontSize(BODY_SIZE); doc.setTextColor(30,45,80);
+        let ty3 = y + 10;
         for(const line of lines){
-          if(ty2 > PH-22){
-            addPageFooter();
-            newPage();
-            sectionHeader('AI Intelligence (continued)');
-            y = 30;
-            doc.setFillColor(245,250,252);
-            doc.roundedRect(M, y, CW, PH-y-20, 2,2,'F');
-            ty2 = y + 7;
-            // Re-apply font after new page (jsPDF resets on newPage)
-            doc.setFont('helvetica','normal');
-            doc.setFontSize(BODY_SIZE);
-            doc.setTextColor(30,45,80);
+          if(ty3 > PH - 20){
+            addPageFooter(); newPage(); sectionHeader('AI Advisor — Conversation (continued)',''); y = 30; ty3 = 36;
+            doc.setFont('helvetica','normal'); doc.setFontSize(BODY_SIZE); doc.setTextColor(30,45,80);
           }
-          // Headings (lines starting with ##/bold markers) — slightly bolder but same size
-          const isHeading = /^[•\-]/.test(line.trim());
-          doc.setFont('helvetica', isHeading ? 'normal' : 'normal');
-          doc.text(line, M+5, ty2);
-          ty2 += LINE_H;
+          doc.text(line, M+7, ty3);
+          ty3 += LINE_H;
         }
-        y = ty2 + 8;
+        y = ty3 + 6;
       });
-      addPageFooter();
     }
+    addPageFooter();
 
     // ══════════════════════════════════════════════════
     // BACK COVER
