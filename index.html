@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#0a0f1e"/>
+<meta name="description" content="StratOS — AI-powered Strategy Management PWA"/>
+<title>StratOS — Strategy Intelligence Platform</title>
+<link rel="manifest" id="manifest-placeholder"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#0a0f1e;--bg2:#0f1628;--bg3:#141d35;--bg4:#1a2444;
+  --gold:#c9a84c;--gold2:#e8c96a;--gold3:#f5e09a;
+  --cyan:#00d4ff;--cyan2:#7ee8fa;
+  --red:#ff4d6d;--green:#00e5a0;--orange:#ff8c42;
+  --text:#e8eaf6;--text2:#9fa8c7;--text3:#5c6a8a;
+  --border:rgba(201,168,76,0.18);--border2:rgba(255,255,255,0.06);
+  --card:rgba(20,29,53,0.95);--glow:rgba(201,168,76,0.12);
+  --font-head:'Cinzel',serif;--font-body:'DM Sans',sans-serif;--font-mono:'DM Mono',monospace;
+  --r:12px;--r2:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(201,168,76,0.08) 0%,transparent 60%),radial-gradient(ellipse 40% 30% at 80% 80%,rgba(0,212,255,0.05) 0%,transparent 50%);pointer-events:none;z-index:0}
+
+/* HEADER */
+header{position:sticky;top:0;z-index:100;background:rgba(10,15,30,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:60px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--font-head);font-size:1.2rem;color:var(--gold2);letter-spacing:2px}
+.logo svg{width:28px;height:28px}
+.header-right{display:flex;align-items:center;gap:12px}
+.api-badge{font-family:var(--font-mono);font-size:0.65rem;color:var(--text3);border:1px solid var(--border2);padding:3px 8px;border-radius:4px}
+#apiKeyInput{background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:0.7rem;padding:5px 10px;border-radius:6px;width:220px;outline:none}
+#apiKeyInput:focus{border-color:var(--gold)}
+#apiKeyInput::placeholder{color:var(--text3)}
+
+/* NAV */
+nav{position:sticky;top:60px;z-index:99;background:rgba(10,15,30,0.88);backdrop-filter:blur(16px);border-bottom:1px solid var(--border2);padding:0 24px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+.nav-btn{background:none;border:none;color:var(--text2);font-family:var(--font-body);font-size:0.8rem;font-weight:500;padding:14px 16px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:all 0.2s;display:flex;align-items:center;gap:6px}
+.nav-btn:hover{color:var(--gold2)}
+.nav-btn.active{color:var(--gold2);border-bottom-color:var(--gold2)}
+.nav-icon{font-size:1rem}
+
+/* MAIN */
+main{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:28px 24px}
+.page{display:none;animation:fadeIn 0.35s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* SECTION HEADER */
+.section-title{font-family:var(--font-head);font-size:1.5rem;color:var(--gold2);margin-bottom:4px;letter-spacing:1px}
+.section-sub{color:var(--text2);font-size:0.85rem;margin-bottom:24px}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:24px;margin-bottom:20px;transition:border-color 0.3s}
+.card:hover{border-color:rgba(201,168,76,0.35)}
+.card-title{font-family:var(--font-head);font-size:0.95rem;color:var(--gold2);margin-bottom:16px;letter-spacing:0.5px;display:flex;align-items:center;gap:8px}
+.card-title .badge{background:var(--glow);border:1px solid var(--border);font-family:var(--font-mono);font-size:0.65rem;color:var(--gold);padding:2px 8px;border-radius:4px}
+
+/* GRID */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:768px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+/* INPUTS */
+input[type=text],input[type=number],textarea,select{
+  background:rgba(255,255,255,0.04);border:1px solid var(--border2);color:var(--text);
+  font-family:var(--font-body);font-size:0.85rem;padding:10px 14px;border-radius:8px;
+  width:100%;outline:none;transition:border-color 0.2s;resize:vertical
+}
+input:focus,textarea:focus,select:focus{border-color:var(--gold)}
+input::placeholder,textarea::placeholder{color:var(--text3)}
+label{font-size:0.78rem;color:var(--text2);font-weight:500;margin-bottom:5px;display:block}
+.field{margin-bottom:14px}
+select option{background:var(--bg3)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-family:var(--font-body);font-size:0.83rem;font-weight:600;cursor:pointer;border:none;transition:all 0.2s;letter-spacing:0.3px}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#0a0f1e}
+.btn-gold:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(201,168,76,0.4)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text2)}
+.btn-outline:hover{border-color:var(--gold);color:var(--gold2)}
+.btn-danger{background:rgba(255,77,109,0.12);border:1px solid rgba(255,77,109,0.3);color:var(--red)}
+.btn-danger:hover{background:rgba(255,77,109,0.2)}
+.btn-sm{padding:6px 12px;font-size:0.75rem}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+
+/* STAT CHIPS */
+.stat-chip{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:16px;text-align:center}
+.stat-chip .value{font-family:var(--font-mono);font-size:1.6rem;font-weight:500;color:var(--gold2)}
+.stat-chip .label{font-size:0.72rem;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.5px}
+
+/* PROGRESS */
+.progress-bar{background:var(--bg4);border-radius:20px;height:6px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;border-radius:20px;transition:width 0.5s ease;background:linear-gradient(90deg,var(--gold),var(--gold2))}
+.progress-fill.green{background:linear-gradient(90deg,#00b37a,var(--green))}
+.progress-fill.red{background:linear-gradient(90deg,#cc1a35,var(--red))}
+.progress-fill.orange{background:linear-gradient(90deg,#cc5500,var(--orange))}
+
+/* TAG */
+.tag{display:inline-block;font-size:0.7rem;padding:3px 9px;border-radius:20px;font-weight:500;font-family:var(--font-mono)}
+.tag-green{background:rgba(0,229,160,0.12);color:var(--green);border:1px solid rgba(0,229,160,0.25)}
+.tag-red{background:rgba(255,77,109,0.12);color:var(--red);border:1px solid rgba(255,77,109,0.25)}
+.tag-orange{background:rgba(255,140,66,0.12);color:var(--orange);border:1px solid rgba(255,140,66,0.25)}
+.tag-gold{background:rgba(201,168,76,0.12);color:var(--gold2);border:1px solid var(--border)}
+.tag-cyan{background:rgba(0,212,255,0.1);color:var(--cyan2);border:1px solid rgba(0,212,255,0.2)}
+
+/* TABLE */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:0.82rem}
+th{color:var(--text3);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.8px;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border2);font-family:var(--font-mono)}
+td{padding:11px 12px;border-bottom:1px solid rgba(255,255,255,0.03);color:var(--text2);vertical-align:middle}
+tr:hover td{background:rgba(255,255,255,0.02)}
+
+/* AI OUTPUT */
+.ai-output{background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.15);border-radius:var(--r);padding:18px;margin-top:16px;min-height:60px;line-height:1.7;font-size:0.85rem;color:var(--text)}
+.ai-output.loading{display:flex;align-items:center;gap:10px;color:var(--text2)}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* SWOT */
+.swot-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border2);border-radius:var(--r);overflow:hidden}
+.swot-cell{background:var(--bg3);padding:18px}
+.swot-label{font-family:var(--font-head);font-size:0.75rem;letter-spacing:1px;margin-bottom:10px}
+.swot-label.s{color:#00e5a0}.swot-label.w{color:#ff4d6d}.swot-label.o{color:#00d4ff}.swot-label.t{color:#ff8c42}
+.swot-cell textarea{min-height:90px;font-size:0.78rem}
+
+/* OKR */
+.okr-item{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.okr-obj{font-weight:600;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.kr-item{margin-left:16px;margin-bottom:8px;padding:8px 12px;background:rgba(255,255,255,0.02);border-radius:6px;border-left:2px solid var(--border)}
+.kr-item .kr-title{font-size:0.8rem;color:var(--text2);margin-bottom:6px}
+
+/* INITIATIVE */
+.initiative-row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 100px;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.04)}
+@media(max-width:768px){.initiative-row{grid-template-columns:1fr}}
+
+/* RISK */
+.risk-matrix{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:10px}
+.risk-cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:0.65rem;font-family:var(--font-mono);font-weight:600;cursor:default;transition:transform 0.2s}
+.risk-cell:hover{transform:scale(1.08)}
+
+/* KPI GAUGE */
+.kpi-card{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:16px}
+.kpi-name{font-size:0.78rem;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px}
+.kpi-val{font-family:var(--font-mono);font-size:1.5rem;color:var(--text);margin-bottom:8px}
+.kpi-target{font-size:0.72rem;color:var(--text3)}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-size:0.82rem;color:var(--text);z-index:9999;transform:translateY(80px);opacity:0;transition:all 0.3s;max-width:320px}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.success{border-color:rgba(0,229,160,0.4);color:var(--green)}
+#toast.error{border-color:rgba(255,77,109,0.4);color:var(--red)}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:10px}
+
+/* DASHBOARD HERO */
+.hero-banner{background:linear-gradient(135deg,rgba(201,168,76,0.08) 0%,rgba(0,212,255,0.05) 100%);border:1px solid var(--border);border-radius:var(--r2);padding:28px;margin-bottom:24px;position:relative;overflow:hidden}
+.hero-banner::after{content:'◈';position:absolute;right:28px;top:50%;transform:translateY(-50%);font-size:5rem;color:rgba(201,168,76,0.06);line-height:1}
+.hero-title{font-family:var(--font-head);font-size:1.8rem;color:var(--gold2);margin-bottom:6px}
+.hero-sub{color:var(--text2);font-size:0.88rem;max-width:500px}
+.hero-meta{font-family:var(--font-mono);font-size:0.7rem;color:var(--text3);margin-top:12px}
+
+/* TABS */
+.tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--bg3);padding:4px;border-radius:10px;width:fit-content}
+.tab-btn{background:none;border:none;color:var(--text2);font-family:var(--font-body);font-size:0.8rem;padding:7px 16px;border-radius:7px;cursor:pointer;transition:all 0.2s}
+.tab-btn.active{background:var(--bg4);color:var(--gold2);font-weight:600}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:48px 20px;color:var(--text3)}
+.empty .icon{font-size:2.5rem;margin-bottom:12px;opacity:0.4}
+.empty p{font-size:0.85rem}
+
+/* DIVIDER */
+.divider{border:none;border-top:1px solid var(--border2);margin:20px 0}
+
+/* FLEX ROW */
+.row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.row .field{flex:1;min-width:140px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 28 28" fill="none">
+      <polygon points="14,2 26,8 26,20 14,26 2,20 2,8" fill="none" stroke="#c9a84c" stroke-width="1.5"/>
+      <polygon points="14,7 21,11 21,17 14,21 7,17 7,11" fill="none" stroke="#e8c96a" stroke-width="1"/>
+      <circle cx="14" cy="14" r="2.5" fill="#c9a84c"/>
+    </svg>
+    <span style="font-size:1.2rem;letter-spacing:2px">STRAT</span><span style="font-size:1rem;letter-spacing:3px;opacity:0.9">OS</span>
+  </div>
+  <div class="header-right">
+    <span class="api-badge">Claude AI</span>
+    <input id="apiKeyInput" type="password" placeholder="Enter Anthropic API Key…"/>
+  </div>
+</header>
+
+<nav>
+  <button class="nav-btn active" onclick="showPage('dashboard')"><span class="nav-icon">⬡</span> Dashboard</button>
+  <button class="nav-btn" onclick="showPage('canvas')"><span class="nav-icon">◈</span> Strategy Canvas</button>
+  <button class="nav-btn" onclick="showPage('swot')"><span class="nav-icon">◫</span> SWOT / PESTLE</button>
+  <button class="nav-btn" onclick="showPage('okr')"><span class="nav-icon">◎</span> OKR Workbench</button>
+  <button class="nav-btn" onclick="showPage('initiatives')"><span class="nav-icon">▶</span> Initiatives</button>
+  <button class="nav-btn" onclick="showPage('kpi')"><span class="nav-icon">◉</span> KPI Monitor</button>
+  <button class="nav-btn" onclick="showPage('risk')"><span class="nav-icon">⚠</span> Risk Radar</button>
+  <button class="nav-btn" onclick="showPage('advisor')"><span class="nav-icon">✦</span> AI Advisor</button>
+</nav>
+
+<main>
+
+<!-- DASHBOARD -->
+<div id="page-dashboard" class="page active">
+  <div class="hero-banner">
+    <div class="hero-title" id="dash-org-name">Your Organization</div>
+    <div class="hero-sub" id="dash-mission">Define your vision in the Strategy Canvas →</div>
+    <div class="hero-meta" id="dash-period">Strategic Period: FY 2025–26 &nbsp;|&nbsp; Last updated: just now</div>
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-gold btn-sm" onclick="loadDemo()" style="gap:6px">
+        ⚡ Load Demo — ZeroMile Foods
+      </button>
+      <span style="font-size:0.72rem;color:var(--text3);font-family:var(--font-mono)">AI-powered farm-to-fork startup · Hyderabad</span>
+      <button class="btn btn-outline btn-sm" onclick="clearAll()" style="margin-left:auto">✕ Clear All Data</button>
+    </div>
+  </div>
+
+  <div class="grid-4" id="dash-stats">
+    <div class="stat-chip"><div class="value" id="stat-okrs">0</div><div class="label">Active OKRs</div></div>
+    <div class="stat-chip"><div class="value" id="stat-inits">0</div><div class="label">Initiatives</div></div>
+    <div class="stat-chip"><div class="value" id="stat-kpis">0</div><div class="label">KPIs Tracked</div></div>
+    <div class="stat-chip"><div class="value" id="stat-risks">0</div><div class="label">Open Risks</div></div>
+  </div>
+
+  <div class="grid-2" style="margin-top:20px">
+    <div class="card">
+      <div class="card-title">⬡ Strategic Health Score</div>
+      <div style="font-family:var(--font-mono);font-size:3rem;color:var(--gold2);text-align:center;padding:16px 0" id="health-score">—</div>
+      <div style="text-align:center;color:var(--text3);font-size:0.78rem" id="health-label">Complete your strategy modules to get a score</div>
+      <div class="progress-bar" style="margin-top:16px"><div class="progress-fill" id="health-bar" style="width:0%"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">▶ Top Initiatives <span class="badge" id="top-init-count">0</span></div>
+      <div id="top-initiatives-list"><div class="empty"><div class="icon">▷</div><p>No initiatives yet</p></div></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:0">
+    <div class="card-title">⚠ At-Risk Items</div>
+    <div id="at-risk-list"><div class="empty"><div class="icon">✓</div><p>No at-risk items</p></div></div>
+  </div>
+</div>
+
+<!-- STRATEGY CANVAS -->
+<div id="page-canvas" class="page">
+  <div class="section-title">Strategy Canvas</div>
+  <div class="section-sub">Define your organization's strategic foundation</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">◈ Identity</div>
+      <div class="field"><label>Organization / Business Unit Name</label><input type="text" id="org-name" placeholder="e.g. Brainovision Innovation Lab" oninput="saveCanvas()"/></div>
+      <div class="field"><label>Vision Statement</label><textarea id="vision" rows="3" placeholder="What does the future look like?" oninput="saveCanvas()"></textarea></div>
+      <div class="field"><label>Mission Statement</label><textarea id="mission" rows="3" placeholder="Why do you exist? What do you do?" oninput="saveCanvas()"></textarea></div>
+    </div>
+    <div class="card">
+      <div class="card-title">◈ Strategic Direction</div>
+      <div class="field"><label>Strategic Period</label><input type="text" id="period" placeholder="e.g. FY 2025–26" oninput="saveCanvas()"/></div>
+      <div class="field"><label>Core Values (comma-separated)</label><input type="text" id="values" placeholder="Innovation, Integrity, Impact" oninput="saveCanvas()"/></div>
+      <div class="field"><label>Strategic Priorities / Pillars</label><textarea id="pillars" rows="4" placeholder="List 3–5 strategic pillars, one per line" oninput="saveCanvas()"></textarea></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">✦ AI: Generate Strategic Narrative <span class="badge">Claude</span></div>
+    <p style="font-size:0.82rem;color:var(--text2);margin-bottom:14px">Claude will craft a compelling strategy narrative from your inputs.</p>
+    <button class="btn btn-gold" onclick="generateNarrative()">⟳ Generate Strategy Narrative</button>
+    <div id="narrative-output" class="ai-output" style="display:none"></div>
+  </div>
+</div>
+
+<!-- SWOT / PESTLE -->
+<div id="page-swot" class="page">
+  <div class="section-title">SWOT / PESTLE Analysis</div>
+  <div class="section-sub">Environmental scanning & strategic positioning</div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('swot-tab','swot')">SWOT Analysis</button>
+    <button class="tab-btn" onclick="switchTab('swot-tab','pestle')">PESTLE Analysis</button>
+  </div>
+
+  <div id="swot-tab-swot">
+    <div class="swot-grid">
+      <div class="swot-cell"><div class="swot-label s">◈ STRENGTHS</div><textarea id="sw-s" rows="5" placeholder="Internal advantages…" oninput="saveSwot()"></textarea></div>
+      <div class="swot-cell"><div class="swot-label w">◈ WEAKNESSES</div><textarea id="sw-w" rows="5" placeholder="Internal limitations…" oninput="saveSwot()"></textarea></div>
+      <div class="swot-cell"><div class="swot-label o">◈ OPPORTUNITIES</div><textarea id="sw-o" rows="5" placeholder="External chances…" oninput="saveSwot()"></textarea></div>
+      <div class="swot-cell"><div class="swot-label t">◈ THREATS</div><textarea id="sw-t" rows="5" placeholder="External dangers…" oninput="saveSwot()"></textarea></div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button class="btn btn-gold" onclick="analyzeSwot()">✦ AI SWOT Analysis</button>
+      <button class="btn btn-outline" onclick="clearSwot()">Clear</button>
+    </div>
+    <div id="swot-ai-output" class="ai-output" style="display:none"></div>
+  </div>
+
+  <div id="swot-tab-pestle" style="display:none">
+    <div class="grid-2">
+      <div class="card"><div class="card-title" style="color:#e879f9">P — Political</div><textarea id="pes-p" rows="4" placeholder="Government policies, regulations, stability…" oninput="savePestle()"></textarea></div>
+      <div class="card"><div class="card-title" style="color:#60a5fa">E — Economic</div><textarea id="pes-e" rows="4" placeholder="Growth, inflation, exchange rates, income…" oninput="savePestle()"></textarea></div>
+      <div class="card"><div class="card-title" style="color:#34d399">S — Social</div><textarea id="pes-s" rows="4" placeholder="Demographics, culture, lifestyle trends…" oninput="savePestle()"></textarea></div>
+      <div class="card"><div class="card-title" style="color:var(--gold2)">T — Technological</div><textarea id="pes-t" rows="4" placeholder="AI, automation, R&D, digital shifts…" oninput="savePestle()"></textarea></div>
+      <div class="card"><div class="card-title" style="color:#fb923c">L — Legal</div><textarea id="pes-l" rows="4" placeholder="Laws, IP, employment, consumer rights…" oninput="savePestle()"></textarea></div>
+      <div class="card"><div class="card-title" style="color:#a3e635">E — Environmental</div><textarea id="pes-env" rows="4" placeholder="Climate, sustainability, ESG…" oninput="savePestle()"></textarea></div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button class="btn btn-gold" onclick="analyzePestle()">✦ AI PESTLE Synthesis</button>
+    </div>
+    <div id="pestle-ai-output" class="ai-output" style="display:none"></div>
+  </div>
+</div>
+
+<!-- OKR WORKBENCH -->
+<div id="page-okr" class="page">
+  <div class="section-title">OKR Workbench</div>
+  <div class="section-sub">Objectives & Key Results — aligned to strategy pillars</div>
+
+  <div class="card">
+    <div class="card-title">+ Add Objective</div>
+    <div class="row">
+      <div class="field" style="flex:2"><label>Objective</label><input type="text" id="okr-obj" placeholder="e.g. Become the #1 AI innovation partner in South India"/></div>
+      <div class="field"><label>Pillar</label><input type="text" id="okr-pillar" placeholder="Growth / Ops / People…"/></div>
+      <div class="field"><label>Quarter</label>
+        <select id="okr-quarter">
+          <option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option><option>Annual</option>
+        </select>
+      </div>
+    </div>
+    <div id="kr-inputs">
+      <div class="field"><label>Key Result 1</label><input type="text" class="kr-input" placeholder="Measurable result…"/></div>
+      <div class="field"><label>Key Result 2</label><input type="text" class="kr-input" placeholder="Measurable result…"/></div>
+      <div class="field"><label>Key Result 3</label><input type="text" class="kr-input" placeholder="Measurable result…"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn btn-gold" onclick="addOKR()">+ Add OKR</button>
+      <button class="btn btn-outline btn-sm" onclick="aiSuggestKRs()">✦ AI Suggest KRs</button>
+    </div>
+    <div id="kr-suggest" class="ai-output" style="display:none"></div>
+  </div>
+
+  <div id="okr-list"></div>
+</div>
+
+<!-- INITIATIVES -->
+<div id="page-initiatives" class="page">
+  <div class="section-title">Initiative Tracker</div>
+  <div class="section-sub">Strategic initiatives linked to OKRs and pillars</div>
+
+  <div class="card">
+    <div class="card-title">+ New Initiative</div>
+    <div class="row">
+      <div class="field" style="flex:2"><label>Initiative Name</label><input type="text" id="init-name" placeholder="e.g. Launch AI Product Academy"/></div>
+      <div class="field"><label>Owner</label><input type="text" id="init-owner" placeholder="Name / Team"/></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Linked OKR / Pillar</label><input type="text" id="init-okr" placeholder="OKR or pillar"/></div>
+      <div class="field"><label>Status</label>
+        <select id="init-status">
+          <option>Not Started</option><option>In Progress</option><option>On Hold</option><option>Completed</option><option>At Risk</option>
+        </select>
+      </div>
+      <div class="field"><label>Priority</label>
+        <select id="init-priority"><option>High</option><option>Medium</option><option>Low</option></select>
+      </div>
+      <div class="field"><label>Progress %</label><input type="number" id="init-prog" min="0" max="100" value="0" style="width:80px"/></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Due Date</label><input type="text" id="init-due" placeholder="e.g. Sep 2025"/></div>
+      <div class="field"><label>Budget (₹ / K)</label><input type="text" id="init-budget" placeholder="e.g. 5L"/></div>
+    </div>
+    <button class="btn btn-gold" onclick="addInitiative()" style="margin-top:6px">+ Add Initiative</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">▶ All Initiatives <span class="badge" id="init-count-badge">0</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Initiative</th><th>Owner</th><th>OKR</th><th>Status</th><th>Priority</th><th>Progress</th><th>Due</th><th></th></tr></thead>
+        <tbody id="init-table-body"></tbody>
+      </table>
+    </div>
+    <div id="init-empty" class="empty"><div class="icon">▷</div><p>No initiatives added yet</p></div>
+  </div>
+</div>
+
+<!-- KPI MONITOR -->
+<div id="page-kpi" class="page">
+  <div class="section-title">KPI Monitor</div>
+  <div class="section-sub">Track key performance indicators against targets</div>
+
+  <div class="card">
+    <div class="card-title">+ Add KPI</div>
+    <div class="row">
+      <div class="field" style="flex:2"><label>KPI Name</label><input type="text" id="kpi-name" placeholder="e.g. Revenue Growth Rate"/></div>
+      <div class="field"><label>Category</label>
+        <select id="kpi-cat"><option>Financial</option><option>Customer</option><option>Operational</option><option>People</option><option>Innovation</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Current Value</label><input type="text" id="kpi-cur" placeholder="e.g. 42"/></div>
+      <div class="field"><label>Target Value</label><input type="text" id="kpi-tgt" placeholder="e.g. 60"/></div>
+      <div class="field"><label>Unit</label><input type="text" id="kpi-unit" placeholder="%, ₹L, users…"/></div>
+      <div class="field"><label>Direction</label>
+        <select id="kpi-dir"><option value="up">↑ Higher is better</option><option value="down">↓ Lower is better</option></select>
+      </div>
+    </div>
+    <button class="btn btn-gold" onclick="addKPI()" style="margin-top:6px">+ Add KPI</button>
+  </div>
+
+  <div id="kpi-grid" class="grid-3"></div>
+  <div id="kpi-empty" class="empty" style="margin-top:20px"><div class="icon">◉</div><p>No KPIs added yet</p></div>
+
+  <div class="card" style="margin-top:20px" id="kpi-ai-card">
+    <div class="card-title">✦ AI KPI Health Report <span class="badge">Claude</span></div>
+    <button class="btn btn-gold btn-sm" onclick="generateKPIReport()">Generate Health Report</button>
+    <div id="kpi-ai-output" class="ai-output" style="display:none"></div>
+  </div>
+</div>
+
+<!-- RISK RADAR -->
+<div id="page-risk" class="page">
+  <div class="section-title">Risk Radar</div>
+  <div class="section-sub">Identify, assess, and mitigate strategic risks</div>
+
+  <div class="card">
+    <div class="card-title">+ Add Risk</div>
+    <div class="row">
+      <div class="field" style="flex:2"><label>Risk Description</label><input type="text" id="risk-name" placeholder="e.g. Key talent attrition"/></div>
+      <div class="field"><label>Category</label>
+        <select id="risk-cat"><option>Strategic</option><option>Operational</option><option>Financial</option><option>Compliance</option><option>Technology</option><option>People</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Likelihood (1–5)</label><input type="number" id="risk-like" min="1" max="5" value="3"/></div>
+      <div class="field"><label>Impact (1–5)</label><input type="number" id="risk-impact" min="1" max="5" value="3"/></div>
+      <div class="field"><label>Status</label>
+        <select id="risk-status"><option>Open</option><option>Mitigating</option><option>Accepted</option><option>Closed</option></select>
+      </div>
+    </div>
+    <div class="field"><label>Mitigation Plan</label><textarea id="risk-mit" rows="2" placeholder="How will you address this risk?"></textarea></div>
+    <button class="btn btn-gold" onclick="addRisk()" style="margin-top:6px">+ Add Risk</button>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">⚠ Risk Register</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Risk</th><th>Cat</th><th>Score</th><th>Status</th><th></th></tr></thead>
+          <tbody id="risk-table-body"></tbody>
+        </table>
+      </div>
+      <div id="risk-empty" class="empty"><div class="icon">✓</div><p>No risks added</p></div>
+    </div>
+    <div class="card">
+      <div class="card-title">◫ Risk Heatmap</div>
+      <div style="display:grid;grid-template-columns:20px 1fr;gap:6px;align-items:center">
+        <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:0.68rem;color:var(--text3);text-align:center;height:100%">Impact ↑</div>
+        <div>
+          <div id="risk-heatmap" class="risk-matrix"></div>
+          <div style="display:flex;justify-content:center;font-size:0.68rem;color:var(--text3);margin-top:4px">Likelihood →</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <span style="font-size:0.7rem;color:var(--text3)">■ <span style="color:#ef4444">High</span> ■ <span style="color:#f97316">Medium</span> ■ <span style="color:#22c55e">Low</span></span>
+      </div>
+      <button class="btn btn-gold btn-sm" onclick="aiMitigate()" style="margin-top:12px">✦ AI Risk Mitigation Plan</button>
+      <div id="risk-ai-output" class="ai-output" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- AI ADVISOR -->
+<div id="page-advisor" class="page">
+  <div class="section-title">AI Strategy Advisor</div>
+  <div class="section-sub">Powered by Claude — your always-on strategy consultant</div>
+
+  <div class="grid-2" style="margin-bottom:20px">
+    <button class="btn btn-outline" style="justify-content:center;padding:14px" onclick="quickPrompt('Do a gap analysis of our current strategy vs best practices')">◈ Gap Analysis</button>
+    <button class="btn btn-outline" style="justify-content:center;padding:14px" onclick="quickPrompt('Suggest 5 quick-win strategic initiatives for our business')">⚡ Quick Wins</button>
+    <button class="btn btn-outline" style="justify-content:center;padding:14px" onclick="quickPrompt('Generate a Porter\'s Five Forces analysis based on our strategy')">◫ Porter\'s 5 Forces</button>
+    <button class="btn btn-outline" style="justify-content:center;padding:14px" onclick="quickPrompt('What should our competitive differentiation strategy be?')">◉ Competitive Edge</button>
+    <button class="btn btn-outline" style="justify-content:center;padding:14px" onclick="quickPrompt('Create a 90-day action plan to kickstart our strategic initiatives')">▶ 90-Day Plan</button>
+    <button class="btn btn-outline" style="justify-content:center;padding:14px" onclick="quickPrompt('Generate key talking points for a board strategy presentation')">✦ Board Narrative</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">✦ Ask the Strategy Advisor <span class="badge">Claude</span></div>
+    <div class="field"><textarea id="advisor-q" rows="3" placeholder="Ask anything about your strategy… e.g. 'How should we prioritize our initiatives given resource constraints?'"></textarea></div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn btn-gold" onclick="askAdvisor()">⟳ Get Strategic Advice</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text2);cursor:pointer;margin:0">
+        <input type="checkbox" id="advisor-context" checked style="width:auto;accent-color:var(--gold)"/> Include my strategy context
+      </label>
+    </div>
+    <div id="advisor-output" class="ai-output" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">◎ Conversation History</div>
+    <div id="advisor-history" style="max-height:300px;overflow-y:auto">
+      <div class="empty"><div class="icon">✦</div><p>Your advisory session will appear here</p></div>
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="clearHistory()" style="margin-top:10px">Clear History</button>
+  </div>
+</div>
+
+</main>
+
+<div id="toast"></div>
+
+<footer style="position:relative;z-index:10;text-align:center;padding:20px 24px;border-top:1px solid rgba(201,168,76,0.25);margin-top:40px;background:#0a0f1e">
+  <div style="font-family:'DM Sans',sans-serif;font-size:0.82rem;color:#7a88a8;letter-spacing:0.3px;line-height:1.8">
+    Designed &amp; Architected by
+    <span style="color:#c9a84c;font-weight:600"> Krishnamurthy Kandregula</span>
+    &nbsp;&nbsp;·&nbsp;&nbsp;
+    Made by <span style="color:#e8c96a;font-weight:600">Claude</span>
+  </div>
+</footer>
+
+<script>
+// ===================== STATE =====================
+let state = {
+  canvas: {orgName:'',vision:'',mission:'',period:'FY 2025–26',values:'',pillars:''},
+  swot: {s:'',w:'',o:'',t:''},
+  pestle: {p:'',e:'',s:'',t:'',l:'',env:''},
+  okrs: [],
+  initiatives: [],
+  kpis: [],
+  risks: [],
+  advisorHistory: []
+};
+
+// ===================== INIT =====================
+window.onload = () => {
+  try {
+    const saved = localStorage.getItem('stratos_state');
+    if(saved) state = {...state,...JSON.parse(saved)};
+  } catch(e){ console.warn('State restore failed, starting fresh'); }
+  renderAll();
+  buildHeatmap();
+};
+
+function save(){ localStorage.setItem('stratos_state', JSON.stringify(state)); }
+function renderAll(){ renderCanvas();renderOKRs();renderInitiatives();renderKPIs();renderRisks();updateDashboard(); }
+
+// ===================== NAVIGATION =====================
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  const btns = document.querySelectorAll('.nav-btn');
+  const map = {dashboard:0,canvas:1,swot:2,okr:3,initiatives:4,kpi:5,risk:6,advisor:7};
+  btns[map[id]].classList.add('active');
+}
+
+function switchTab(group, tab){
+  const tabs = document.querySelectorAll(`[id^="${group}-"]`);
+  tabs.forEach(t=>t.style.display='none');
+  document.getElementById(`${group}-${tab}`).style.display='block';
+  event.target.closest('.tabs').querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+// ===================== CANVAS =====================
+function saveCanvas(){
+  state.canvas = {
+    orgName: v('org-name'), vision: v('vision'), mission: v('mission'),
+    period: v('period'), values: v('values'), pillars: v('pillars')
+  };
+  save(); updateDashboard();
+}
+function renderCanvas(){
+  const c = state.canvas;
+  sv('org-name', c.orgName); sv('vision', c.vision); sv('mission', c.mission);
+  sv('period', c.period); sv('values', c.values); sv('pillars', c.pillars);
+}
+
+// ===================== SWOT =====================
+function saveSwot(){ state.swot={s:v('sw-s'),w:v('sw-w'),o:v('sw-o'),t:v('sw-t')}; save(); }
+function savePestle(){ state.pestle={p:v('pes-p'),e:v('pes-e'),s:v('pes-s'),t:v('pes-t'),l:v('pes-l'),env:v('pes-env')}; save(); }
+function clearSwot(){ ['sw-s','sw-w','sw-o','sw-t'].forEach(id=>{ document.getElementById(id).value=''; }); saveSwot(); }
+
+// ===================== OKRs =====================
+function addOKR(){
+  const obj = v('okr-obj').trim();
+  if(!obj){ toast('Enter an objective','error'); return; }
+  const krs = Array.from(document.querySelectorAll('.kr-input')).map(i=>i.value.trim()).filter(Boolean);
+  state.okrs.push({ id: Date.now(), objective: obj, pillar: v('okr-pillar'), quarter: v('okr-quarter'), krs, progress: krs.map(()=>0) });
+  sv('okr-obj',''); document.querySelectorAll('.kr-input').forEach(i=>i.value='');
+  save(); renderOKRs(); updateDashboard(); toast('OKR added ✓','success');
+}
+function renderOKRs(){
+  const el = document.getElementById('okr-list');
+  if(!state.okrs.length){ el.innerHTML='<div class="empty"><div class="icon">◎</div><p>No OKRs added yet</p></div>'; return; }
+  el.innerHTML = state.okrs.map((o,oi)=>`
+    <div class="okr-item">
+      <div class="okr-obj">
+        <span class="tag tag-gold">${o.quarter}</span>
+        <span style="flex:1">${esc(o.objective)}</span>
+        ${o.pillar?`<span class="tag tag-cyan">${esc(o.pillar)}</span>`:''}
+        <button class="btn btn-danger btn-sm" onclick="deleteOKR(${oi})">✕</button>
+      </div>
+      ${o.krs.map((kr,ki)=>`
+        <div class="kr-item">
+          <div class="kr-title">${esc(kr)}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" min="0" max="100" value="${o.progress[ki]||0}" style="flex:1;accent-color:var(--gold)" oninput="updateKRProgress(${oi},${ki},this.value)"/>
+            <span class="tag tag-gold" style="width:40px;text-align:center;font-size:0.7rem">${o.progress[ki]||0}%</span>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+function deleteOKR(i){ state.okrs.splice(i,1); save(); renderOKRs(); updateDashboard(); }
+function updateKRProgress(oi,ki,val){ state.okrs[oi].progress[ki]=parseInt(val); save(); renderOKRs(); }
+
+// ===================== INITIATIVES =====================
+function addInitiative(){
+  const name = v('init-name').trim();
+  if(!name){ toast('Enter initiative name','error'); return; }
+  state.initiatives.push({
+    id:Date.now(), name, owner:v('init-owner'), okr:v('init-okr'),
+    status:v('init-status'), priority:v('init-priority'),
+    progress:parseInt(v('init-prog'))||0, due:v('init-due'), budget:v('init-budget')
+  });
+  ['init-name','init-owner','init-okr','init-due','init-budget'].forEach(id=>sv(id,''));
+  document.getElementById('init-prog').value=0;
+  save(); renderInitiatives(); updateDashboard(); toast('Initiative added ✓','success');
+}
+function renderInitiatives(){
+  const tb = document.getElementById('init-table-body');
+  const empty = document.getElementById('init-empty');
+  document.getElementById('init-count-badge').textContent = state.initiatives.length;
+  if(!state.initiatives.length){ tb.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  const statusColor = {
+    'Not Started':'tag-gold','In Progress':'tag-cyan','On Hold':'tag-orange',
+    'Completed':'tag-green','At Risk':'tag-red'
+  };
+  const prioColor = {'High':'tag-red','Medium':'tag-orange','Low':'tag-green'};
+  tb.innerHTML = state.initiatives.map((it,i)=>`
+    <tr>
+      <td style="color:var(--text)">${esc(it.name)}</td>
+      <td>${esc(it.owner)}</td>
+      <td>${esc(it.okr)}</td>
+      <td><span class="tag ${statusColor[it.status]||'tag-gold'}">${it.status}</span></td>
+      <td><span class="tag ${prioColor[it.priority]||'tag-gold'}">${it.priority}</span></td>
+      <td style="min-width:90px">
+        <div style="font-size:0.72rem;margin-bottom:3px;font-family:var(--font-mono)">${it.progress}%</div>
+        <div class="progress-bar" style="height:4px"><div class="progress-fill ${it.progress<30?'red':it.progress<70?'orange':'green'}" style="width:${it.progress}%"></div></div>
+      </td>
+      <td>${esc(it.due)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteInit(${i})">✕</button></td>
+    </tr>`).join('');
+}
+function deleteInit(i){ state.initiatives.splice(i,1); save(); renderInitiatives(); updateDashboard(); }
+
+// ===================== KPIs =====================
+function addKPI(){
+  const name = v('kpi-name').trim();
+  if(!name){ toast('Enter KPI name','error'); return; }
+  state.kpis.push({ id:Date.now(), name, cat:v('kpi-cat'), current:v('kpi-cur'), target:v('kpi-tgt'), unit:v('kpi-unit'), dir:v('kpi-dir') });
+  ['kpi-name','kpi-cur','kpi-tgt','kpi-unit'].forEach(id=>sv(id,''));
+  save(); renderKPIs(); updateDashboard(); toast('KPI added ✓','success');
+}
+function renderKPIs(){
+  const grid = document.getElementById('kpi-grid');
+  const empty = document.getElementById('kpi-empty');
+  if(!state.kpis.length){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = state.kpis.map((k,i)=>{
+    const cur=parseFloat(k.current)||0, tgt=parseFloat(k.target)||1;
+    let pct = Math.min(100,Math.round((cur/tgt)*100));
+    if(k.dir==='down') pct = Math.min(100, tgt>0?Math.round((tgt/cur)*100):0);
+    const cls = pct>=90?'green':pct>=60?'':'red';
+    return `<div class="kpi-card">
+      <div class="kpi-name">${esc(k.name)}</div>
+      <div class="kpi-val">${esc(k.current)}<span style="font-size:0.9rem;color:var(--text3)"> ${esc(k.unit)}</span></div>
+      <div class="kpi-target">Target: ${esc(k.target)} ${esc(k.unit)}</div>
+      <div class="progress-bar"><div class="progress-fill ${cls}" style="width:${pct}%"></div></div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <span class="tag ${pct>=90?'tag-green':pct>=60?'tag-orange':'tag-red'}">${pct}% of target</span>
+        <span class="tag tag-cyan">${esc(k.cat)}</span>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="deleteKPI(${i})" style="margin-top:8px">✕ Remove</button>
+    </div>`;
+  }).join('');
+}
+function deleteKPI(i){ state.kpis.splice(i,1); save(); renderKPIs(); updateDashboard(); }
+
+// ===================== RISKS =====================
+function addRisk(){
+  const name = v('risk-name').trim();
+  if(!name){ toast('Enter risk description','error'); return; }
+  state.risks.push({ id:Date.now(), name, cat:v('risk-cat'), likelihood:parseInt(v('risk-like'))||3, impact:parseInt(v('risk-impact'))||3, status:v('risk-status'), mitigation:v('risk-mit') });
+  ['risk-name','risk-mit'].forEach(id=>sv(id,''));
+  save(); renderRisks(); updateDashboard(); toast('Risk added ✓','success');
+}
+function renderRisks(){
+  const tb = document.getElementById('risk-table-body');
+  const empty = document.getElementById('risk-empty');
+  if(!state.risks.length){ tb.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  const sColor={'Open':'tag-red','Mitigating':'tag-orange','Accepted':'tag-gold','Closed':'tag-green'};
+  tb.innerHTML = state.risks.map((r,i)=>{
+    const score = r.likelihood * r.impact;
+    const sc = score>=15?'tag-red':score>=8?'tag-orange':'tag-green';
+    return `<tr>
+      <td style="color:var(--text)">${esc(r.name)}</td>
+      <td>${esc(r.cat)}</td>
+      <td><span class="tag ${sc}">${score}</span></td>
+      <td><span class="tag ${sColor[r.status]||'tag-gold'}">${r.status}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteRisk(${i})">✕</button></td>
+    </tr>`;
+  }).join('');
+  buildHeatmap();
+}
+function deleteRisk(i){ state.risks.splice(i,1); save(); renderRisks(); updateDashboard(); }
+function buildHeatmap(){
+  const hm = document.getElementById('risk-heatmap');
+  if(!hm) return;
+  hm.innerHTML='';
+  // 5x5 matrix, y=impact (5 top), x=likelihood (1 left)
+  for(let imp=5;imp>=1;imp--){
+    for(let lik=1;lik<=5;lik++){
+      const score=imp*lik;
+      const bg=score>=15?'rgba(239,68,68,0.7)':score>=8?'rgba(249,115,22,0.6)':'rgba(34,197,94,0.5)';
+      const risks = state.risks.filter(r=>r.likelihood===lik&&r.impact===imp);
+      const cell = document.createElement('div');
+      cell.className='risk-cell';
+      cell.style.background=bg;
+      cell.textContent = risks.length||'';
+      if(risks.length) cell.title=risks.map(r=>r.name).join('\n');
+      hm.appendChild(cell);
+    }
+  }
+}
+
+// ===================== DASHBOARD =====================
+function updateDashboard(){
+  const c = state.canvas;
+  document.getElementById('dash-org-name').textContent = c.orgName || 'Your Organization';
+  document.getElementById('dash-mission').textContent = c.vision || 'Define your vision in the Strategy Canvas →';
+  document.getElementById('dash-period').textContent = `Strategic Period: ${c.period||'FY 2025–26'} | Last updated: just now`;
+  document.getElementById('stat-okrs').textContent = state.okrs.length;
+  document.getElementById('stat-inits').textContent = state.initiatives.length;
+  document.getElementById('stat-kpis').textContent = state.kpis.length;
+  document.getElementById('stat-risks').textContent = state.risks.filter(r=>r.status==='Open').length;
+  // health score
+  const modules = [
+    !!c.orgName, !!c.vision, !!c.mission,
+    state.okrs.length>0, state.initiatives.length>0, state.kpis.length>0,
+    !!(state.swot.s||state.swot.w)
+  ];
+  const pct = Math.round((modules.filter(Boolean).length/modules.length)*100);
+  document.getElementById('health-score').textContent = pct+'%';
+  document.getElementById('health-bar').style.width = pct+'%';
+  document.getElementById('health-label').textContent = pct===100?'Strategy fully defined!':pct>=70?'Good strategic coverage':'Complete more modules for a stronger strategy';
+  // top initiatives
+  const topEl = document.getElementById('top-initiatives-list');
+  const countEl = document.getElementById('top-init-count');
+  const top = state.initiatives.slice(0,4);
+  countEl.textContent = top.length;
+  if(!top.length){ topEl.innerHTML='<div class="empty"><div class="icon">▷</div><p>No initiatives yet</p></div>'; }
+  else topEl.innerHTML = top.map(it=>`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div style="flex:1;font-size:0.82rem;color:var(--text)">${esc(it.name)}</div>
+      <div class="progress-bar" style="width:80px"><div class="progress-fill ${it.progress<30?'red':it.progress<70?'orange':'green'}" style="width:${it.progress}%"></div></div>
+      <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text3)">${it.progress}%</span>
+    </div>`).join('');
+  // at-risk
+  const atRisk = document.getElementById('at-risk-list');
+  const risks = state.initiatives.filter(i=>i.status==='At Risk');
+  const highRisks = state.risks.filter(r=>r.likelihood*r.impact>=15&&r.status==='Open');
+  if(!risks.length&&!highRisks.length){ atRisk.innerHTML='<div class="empty"><div class="icon">✓</div><p>No at-risk items</p></div>'; return; }
+  atRisk.innerHTML = [
+    ...risks.map(i=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag tag-red">Initiative</span><span style="font-size:0.82rem;color:var(--text)">${esc(i.name)}</span></div>`),
+    ...highRisks.map(r=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag tag-red">Risk ${r.likelihood*r.impact}</span><span style="font-size:0.82rem;color:var(--text)">${esc(r.name)}</span></div>`)
+  ].join('');
+}
+
+// ===================== AI HELPERS =====================
+function getApiKey(){ return document.getElementById('apiKeyInput').value.trim(); }
+function getStrategyContext(){
+  const c = state.canvas;
+  return `Organization: ${c.orgName||'Not set'}\nVision: ${c.vision||'Not set'}\nMission: ${c.mission||'Not set'}\nPeriod: ${c.period||'Not set'}\nPillars: ${c.pillars||'Not set'}\nOKRs: ${state.okrs.map(o=>o.objective).join('; ')||'None'}\nInitiatives: ${state.initiatives.map(i=>i.name+' ('+i.status+')').join('; ')||'None'}\nKPIs: ${state.kpis.map(k=>k.name+': '+k.current+'/'+k.target+' '+k.unit).join('; ')||'None'}\nRisks: ${state.risks.map(r=>r.name+' (score:'+(r.likelihood*r.impact)+')').join('; ')||'None'}`;
+}
+
+async function callClaude(systemPrompt, userMsg, outputId){
+  const key = getApiKey();
+  if(!key){ toast('Enter your Anthropic API key','error'); return; }
+  const out = document.getElementById(outputId);
+  out.style.display='flex'; out.className='ai-output loading';
+  out.innerHTML='<div class="spinner"></div><span>Claude is analyzing your strategy…</span>';
+  try{
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, system: systemPrompt, messages:[{role:'user',content:userMsg}] })
+    });
+    const data = await res.json();
+    if(data.error){ out.className='ai-output'; out.innerHTML='<span style="color:var(--red)">Error: '+esc(data.error.message)+'</span>'; return; }
+    const text = data.content.map(c=>c.text||'').join('');
+    out.className='ai-output';
+    out.innerHTML = marked(text);
+  }catch(e){ out.className='ai-output'; out.innerHTML='<span style="color:var(--red)">Request failed. Check your API key.</span>'; }
+}
+
+// Minimal markdown-to-HTML
+function marked(text){
+  return text
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^### (.+)$/gm,'<h4 style="color:var(--gold2);font-family:var(--font-head);margin:12px 0 6px">$1</h4>')
+    .replace(/^## (.+)$/gm,'<h3 style="color:var(--gold2);font-family:var(--font-head);margin:14px 0 6px">$1</h3>')
+    .replace(/^- (.+)$/gm,'<div style="margin-left:14px;margin-bottom:4px">• $1</div>')
+    .replace(/\n\n/g,'<br/><br/>')
+    .replace(/\n/g,'<br/>');
+}
+
+function generateNarrative(){
+  callClaude('You are an expert strategy consultant. Write professional, compelling strategy narratives.',
+    `Create a 200-word strategic narrative for:\n${getStrategyContext()}`, 'narrative-output');
+}
+function analyzeSwot(){
+  const d = state.swot;
+  callClaude('You are a strategic analysis expert specializing in SWOT. Be concise and actionable.',
+    `Analyze this SWOT and provide 3 SO strategies, 2 ST strategies, and key priorities:\nStrengths: ${d.s}\nWeaknesses: ${d.w}\nOpportunities: ${d.o}\nThreats: ${d.t}`, 'swot-ai-output');
+}
+function analyzePestle(){
+  const d = state.pestle;
+  callClaude('You are a strategic environment analyst. Synthesize PESTLE into actionable insights.',
+    `Synthesize this PESTLE into top 3 strategic implications and recommended responses:\nPolitical: ${d.p}\nEconomic: ${d.e}\nSocial: ${d.s}\nTechnological: ${d.t}\nLegal: ${d.l}\nEnvironmental: ${d.env}`, 'pestle-ai-output');
+}
+function aiSuggestKRs(){
+  const obj = v('okr-obj').trim();
+  if(!obj){ toast('Enter an objective first','error'); return; }
+  callClaude('You are an OKR expert. Suggest measurable, time-bound Key Results.',
+    `Suggest 3 strong Key Results for this Objective in the context of: ${getStrategyContext()}\n\nObjective: ${obj}`, 'kr-suggest');
+}
+function generateKPIReport(){
+  callClaude('You are a performance management expert. Give concise, actionable KPI health assessments.',
+    `Generate a KPI Health Report:\n${state.kpis.map(k=>`${k.name}: Current ${k.current}${k.unit}, Target ${k.target}${k.unit} (${k.cat})`).join('\n')}\nContext: ${getStrategyContext()}`, 'kpi-ai-output');
+}
+function aiMitigate(){
+  callClaude('You are a risk management expert. Provide specific mitigation strategies.',
+    `Create a prioritized mitigation plan for these strategic risks:\n${state.risks.map(r=>`${r.name} (L:${r.likelihood} I:${r.impact} Score:${r.likelihood*r.impact}): ${r.mitigation||'No plan yet'}`).join('\n')}\nContext: ${getStrategyContext()}`, 'risk-ai-output');
+}
+
+function quickPrompt(q){ sv('advisor-q',q); showPage('advisor'); askAdvisor(); }
+
+async function askAdvisor(){
+  const q = v('advisor-q').trim();
+  if(!q){ toast('Enter a question','error'); return; }
+  const includeCtx = document.getElementById('advisor-context').checked;
+  const context = includeCtx?'\n\nMy Strategy Context:\n'+getStrategyContext():'';
+  const fullQ = q + context;
+  // add to history
+  state.advisorHistory.push({role:'user',q,ts:new Date().toLocaleTimeString()});
+  const system = 'You are StratOS AI Advisor — a world-class strategy consultant combining McKinsey rigor with Silicon Valley speed. Be specific, structured, and actionable. Use markdown formatting.';
+  await callClaude(system, fullQ, 'advisor-output');
+  const outEl = document.getElementById('advisor-output');
+  state.advisorHistory.push({role:'ai',q:outEl.innerHTML,ts:new Date().toLocaleTimeString()});
+  renderAdvisorHistory();
+  sv('advisor-q','');
+}
+function renderAdvisorHistory(){
+  const el = document.getElementById('advisor-history');
+  if(!state.advisorHistory.length){ el.innerHTML='<div class="empty"><div class="icon">✦</div><p>Your advisory session will appear here</p></div>'; return; }
+  el.innerHTML = state.advisorHistory.map(h=>`
+    <div style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:${h.role==='user'?'rgba(201,168,76,0.06)':'rgba(0,212,255,0.04)'};border:1px solid ${h.role==='user'?'var(--border)':'rgba(0,212,255,0.1)'}">
+      <div style="font-size:0.68rem;color:var(--text3);margin-bottom:5px;font-family:var(--font-mono)">${h.role==='user'?'YOU':'STRATOS AI'} · ${h.ts}</div>
+      <div style="font-size:0.82rem;line-height:1.6">${h.role==='user'?esc(h.q):h.q}</div>
+    </div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+function clearHistory(){ state.advisorHistory=[]; renderAdvisorHistory(); }
+
+// ===================== DEMO DATA =====================
+function clearAll(){
+  if(!confirm('Clear all strategy data?')) return;
+  state = {canvas:{orgName:'',vision:'',mission:'',period:'FY 2025–26',values:'',pillars:''},swot:{s:'',w:'',o:'',t:''},pestle:{p:'',e:'',s:'',t:'',l:'',env:''},okrs:[],initiatives:[],kpis:[],risks:[],advisorHistory:[]};
+  save(); renderAll(); toast('All data cleared','success');
+}
+
+function loadDemo(){
+  state.canvas = {
+    orgName: 'ZeroMile Foods',
+    vision: 'A world where every urban family eats farm-fresh food within hours of harvest — eliminating the cold chain and bringing nature\'s best directly to the table.',
+    mission: 'To eliminate the farm-to-fork distance using AI-powered logistics and direct farmer partnerships, ensuring freshness, fair farmer pricing, and zero food waste.',
+    period: 'FY 2025–26',
+    values: 'Freshness, Farmer-First, AI-Driven, Sustainability, Community',
+    pillars: 'Farm Network Expansion\nAI Logistics & Routing Engine\nConsumer App Growth\nFarmer Welfare & Pricing\nUnit Economics & Profitability'
+  };
+
+  state.swot = {
+    s: '• Proprietary AI routing algorithm cutting delivery cost by 28%\n• 312 certified farmer partnerships across Telangana & AP\n• Industry-leading 4-hour farm-to-door delivery SLA\n• 87% repeat order rate — strong brand loyalty in Hyderabad\n• Zero middlemen model — 40% better farmer price realisation',
+    w: '• Currently limited to Hyderabad — single-city revenue risk\n• High perishability: 6–8% wastage rate above target\n• Thin gross margins (18%) vulnerable to fuel price spikes\n• Heavy dependence on monsoon season for supply diversity\n• No cold chain infrastructure owned — 3PL dependent',
+    o: '• $50B Indian fresh produce market growing at 12% CAGR\n• Rising urban health consciousness post-COVID\n• Quick commerce boom normalising 2-hour delivery expectations\n• Government PM-KISAN & FPO digitisation creating farmer readiness\n• Potential to white-label AI routing to other agri-logistics players',
+    t: '• Zepto, Blinkit & Swiggy Instamart entering fresh produce segment\n• Climate volatility causing unpredictable crop yield disruptions\n• Diesel/CNG price inflation squeezing last-mile delivery margins\n• FSSAI regulatory tightening on direct farm-to-consumer models\n• VC funding slowdown extending runway risk'
+  };
+
+  state.pestle = {
+    p: 'PM-KISAN scheme & FPO support creates digitisation-ready farmer base. State govt. cold chain subsidies available. Upcoming elections may affect agri-policy stability.',
+    e: 'Food inflation at 8.4% YoY driving demand for value-fresh alternatives. Rising urban disposable income in Tier 1 cities supports premium fresh positioning. GST exemptions on direct agri-produce favourable.',
+    s: 'Post-pandemic surge in health consciousness and farm-to-table movement. Millennials & Gen-Z actively seeking transparent food sourcing. Cooking-at-home trend post-WFH sustains high order frequency.',
+    t: 'AI routing and dynamic demand forecasting are core differentiators. IoT-enabled cold chain monitoring emerging. Drone delivery pilots for last-mile feasible by 2027. WhatsApp commerce enabling farmer onboarding at scale.',
+    l: 'FSSAI licensing for direct procurement requires compliance investment. GST structure on processed vs. raw produce creates complexity. Labour laws for gig delivery partners under evolving regulation.',
+    env: 'Zero food waste mission aligns with ESG investor thesis. Carbon-neutral delivery fleet transition planned by FY27. Seasonal sourcing reduces food miles — key sustainability differentiator. Organic certification pipeline with 80 partner farms underway.'
+  };
+
+  state.okrs = [
+    {
+      id: 1001, objective: 'Achieve market leadership in Hyderabad fresh produce segment', pillar: 'Consumer Growth', quarter: 'Q4',
+      krs: ['Acquire 50,000 active monthly consumers by Dec 2025','Achieve 92% on-time delivery rate across all zones','Onboard 500 certified farmers on the ZeroMile platform'],
+      progress: [57, 94, 62]
+    },
+    {
+      id: 1002, objective: 'Expand to 3 new cities and establish multi-city operations', pillar: 'Expansion', quarter: 'Annual',
+      krs: ['Launch in Bangalore and Pune by Q2 FY26','Achieve 10,000 active users in each new city within 60 days of launch','Establish 100 verified farmer partners per new city before launch'],
+      progress: [40, 20, 35]
+    },
+    {
+      id: 1003, objective: 'Achieve operational profitability and Series A readiness', pillar: 'Profitability', quarter: 'Q3',
+      krs: ['Reduce per-order logistics cost by 30% through AI routing v2.0','Achieve EBITDA breakeven by September 2025','Increase average order value from ₹380 to ₹480 via bundling & subscriptions'],
+      progress: [68, 45, 55]
+    }
+  ];
+
+  state.initiatives = [
+    {id:2001,name:'AI Routing Engine v2.0 Launch',owner:'Arjun Reddy (CTO)',okr:'Profitability Pillar',status:'In Progress',priority:'High',progress:68,due:'Jul 2025',budget:'₹18L'},
+    {id:2002,name:'Farmer Super App Release',owner:'Priya Nair (CPO)',okr:'Farm Network Expansion',status:'In Progress',priority:'High',progress:45,due:'Aug 2025',budget:'₹12L'},
+    {id:2003,name:'Bangalore City Launch',owner:'Karthik Iyer (Growth)',okr:'Expansion Pillar',status:'Not Started',priority:'High',progress:12,due:'Oct 2025',budget:'₹35L'},
+    {id:2004,name:'Cold Chain IoT Integration',owner:'Ops Team',okr:'Operational Excellence',status:'In Progress',priority:'Medium',progress:55,due:'Sep 2025',budget:'₹9L'},
+    {id:2005,name:'Series A Fundraise — $5M Target',owner:'Meera Singh (CEO)',okr:'Profitability Pillar',status:'In Progress',priority:'High',progress:30,due:'Nov 2025',budget:'—'},
+    {id:2006,name:'ZeroMile+ Subscription Program',owner:'Marketing Team',okr:'Consumer Growth',status:'Not Started',priority:'Medium',progress:5,due:'Dec 2025',budget:'₹6L'},
+    {id:2007,name:'Organic Certification for 80 Farms',owner:'Farmer Relations',okr:'Farm Network Expansion',status:'In Progress',priority:'Medium',progress:38,due:'Mar 2026',budget:'₹4L'},
+    {id:2008,name:'WhatsApp Order Channel Launch',owner:'Digital Team',okr:'Consumer Growth',status:'At Risk',priority:'High',progress:22,due:'Jun 2025',budget:'₹3L'}
+  ];
+
+  state.kpis = [
+    {id:3001,name:'Monthly Active Consumers',cat:'Customer',current:'28400',target:'50000',unit:'users',dir:'up'},
+    {id:3002,name:'On-Time Delivery Rate',cat:'Operational',current:'87',target:'92',unit:'%',dir:'up'},
+    {id:3003,name:'Farmer Partners Onboarded',cat:'Operational',current:'312',target:'500',unit:'farmers',dir:'up'},
+    {id:3004,name:'Average Order Value',cat:'Financial',current:'₹380',target:'₹480',unit:'',dir:'up'},
+    {id:3005,name:'Net Promoter Score',cat:'Customer',current:'68',target:'75',unit:'pts',dir:'up'},
+    {id:3006,name:'Monthly Gross Revenue',cat:'Financial',current:'₹42L',target:'₹80L',unit:'',dir:'up'},
+    {id:3007,name:'Produce Wastage Rate',cat:'Operational',current:'6.8',target:'4.0',unit:'%',dir:'down'},
+    {id:3008,name:'Farmer Price Realisation vs. Mandi',cat:'Innovation',current:'38',target:'40',unit:'% premium',dir:'up'}
+  ];
+
+  state.risks = [
+    {id:4001,name:'Key tech talent attrition in AI/ML team',cat:'People',likelihood:3,impact:5,status:'Open',mitigation:'ESOP refresh, competitive benchmarking, hiring 2 senior engineers as redundancy buffer'},
+    {id:4002,name:'Series A funding round delayed beyond Q3',cat:'Financial',likelihood:3,impact:4,status:'Mitigating',mitigation:'Bridge loan of ₹2Cr secured from existing angels; extending runway to 14 months'},
+    {id:4003,name:'Blinkit/Zepto aggressive price war in fresh segment',cat:'Strategic',likelihood:4,impact:3,status:'Open',mitigation:'Double down on farmer story, traceability, and community — compete on trust not price'},
+    {id:4004,name:'Monsoon failure disrupting farmer supply chain',cat:'Operational',likelihood:3,impact:4,status:'Open',mitigation:'Diversified crop mix, 3 regional sourcing hubs, pre-season contracting with 50 farms'},
+    {id:4005,name:'FSSAI compliance gap in direct procurement model',cat:'Compliance',likelihood:2,impact:5,status:'Mitigating',mitigation:'Retained food law consultant; FSSAI audit scheduled Aug 2025; full certification by Sep 2025'},
+    {id:4006,name:'AI routing model failure causing delivery SLA breach',cat:'Technology',likelihood:2,impact:4,status:'Open',mitigation:'Manual fallback SOP in place; shadow model running in parallel for failover'}
+  ];
+
+  save(); renderAll();
+
+  // Populate all form fields for canvas
+  sv('org-name', state.canvas.orgName);
+  sv('vision', state.canvas.vision);
+  sv('mission', state.canvas.mission);
+  sv('period', state.canvas.period);
+  sv('values', state.canvas.values);
+  sv('pillars', state.canvas.pillars);
+  sv('sw-s', state.swot.s); sv('sw-w', state.swot.w);
+  sv('sw-o', state.swot.o); sv('sw-t', state.swot.t);
+  sv('pes-p', state.pestle.p); sv('pes-e', state.pestle.e);
+  sv('pes-s', state.pestle.s); sv('pes-t', state.pestle.t);
+  sv('pes-l', state.pestle.l); sv('pes-env', state.pestle.env);
+
+  toast('🌱 ZeroMile Foods demo loaded! Explore all modules.','success');
+}
+
+// ===================== UTILS =====================
+function v(id){ return document.getElementById(id)?.value||''; }
+function sv(id,val){ const el=document.getElementById(id); if(el) el.value=val; }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toast(msg, type='success'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='show '+(type||'');
+  setTimeout(()=>t.className='',2800);
+}
+
+// ===================== PWA =====================
+function genIcon(size){
+  const c=document.createElement('canvas'); c.width=size; c.height=size;
+  const ctx=c.getContext('2d');
+  const cx=size/2, cy=size/2;
+
+  // Background — deep navy with radial glow
+  const bgGrad = ctx.createRadialGradient(cx,cy*0.7,0,cx,cy,size*0.55);
+  bgGrad.addColorStop(0,'#1a2444');
+  bgGrad.addColorStop(1,'#0a0f1e');
+  ctx.fillStyle=bgGrad;
+  // iOS-safe rounded rect (no ctx.roundRect)
+  const r=size*0.18;
+  ctx.beginPath();
+  ctx.moveTo(r,0); ctx.lineTo(size-r,0); ctx.quadraticCurveTo(size,0,size,r);
+  ctx.lineTo(size,size-r); ctx.quadraticCurveTo(size,size,size-r,size);
+  ctx.lineTo(r,size); ctx.quadraticCurveTo(0,size,0,size-r);
+  ctx.lineTo(0,r); ctx.quadraticCurveTo(0,0,r,0);
+  ctx.closePath(); ctx.fill();
+
+  // Outer gold glow ring
+  const glowGrad = ctx.createRadialGradient(cx,cy,size*0.28,cx,cy,size*0.48);
+  glowGrad.addColorStop(0,'rgba(201,168,76,0.18)');
+  glowGrad.addColorStop(1,'rgba(201,168,76,0)');
+  ctx.fillStyle=glowGrad; ctx.fillRect(0,0,size,size);
+
+  function hexPath(r, rot=0){
+    ctx.beginPath();
+    for(let i=0;i<6;i++){
+      const a=(i*Math.PI/3)+rot;
+      i===0?ctx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):ctx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));
+    }
+    ctx.closePath();
+  }
+
+  // Outer hexagon stroke (gold)
+  hexPath(size*0.41, -Math.PI/6);
+  ctx.strokeStyle='#c9a84c'; ctx.lineWidth=size*0.028; ctx.stroke();
+
+  // Inner hexagon stroke (lighter gold)
+  hexPath(size*0.29, -Math.PI/6);
+  ctx.strokeStyle='#e8c96a'; ctx.lineWidth=size*0.018; ctx.stroke();
+
+  // Center filled hexagon (gold gradient)
+  hexPath(size*0.175, -Math.PI/6);
+  const cGrad = ctx.createLinearGradient(cx-size*0.18,cy-size*0.18,cx+size*0.18,cy+size*0.18);
+  cGrad.addColorStop(0,'#f5e09a');
+  cGrad.addColorStop(0.5,'#c9a84c');
+  cGrad.addColorStop(1,'#a07832');
+  ctx.fillStyle=cGrad; ctx.fill();
+
+  // STRAT text
+  const stratSize = size*0.155;
+  ctx.font=`700 ${stratSize}px 'Georgia', serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#0a0f1e';
+  ctx.fillText('STRAT', cx, cy - size*0.01);
+
+  // OS subscript
+  const osSize = size*0.09;
+  ctx.font=`600 ${osSize}px 'Georgia', serif`;
+  ctx.fillStyle='rgba(10,15,30,0.7)';
+  ctx.fillText('OS', cx, cy + stratSize*0.62);
+
+  // Corner dots (decorative)
+  [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([dx,dy])=>{
+    ctx.beginPath();
+    ctx.arc(cx+dx*size*0.36, cy+dy*size*0.36, size*0.018, 0, Math.PI*2);
+    ctx.fillStyle='rgba(201,168,76,0.4)'; ctx.fill();
+  });
+
+  return c.toDataURL('image/png');
+}
+
+// Build manifest after genIcon is defined
+try {
+  const icon192 = genIcon(192);
+  const icon512 = genIcon(512);
+  const manifest = {name:'StratOS',short_name:'StratOS',display:'standalone',background_color:'#0a0f1e',theme_color:'#0a0f1e',icons:[{src:icon192,sizes:'192x192',type:'image/png'},{src:icon512,sizes:'512x512',type:'image/png'}]};
+  const mBlob = new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'});
+  document.getElementById('manifest-placeholder').href = URL.createObjectURL(mBlob);
+  const touchLink = document.createElement('link');
+  touchLink.rel='apple-touch-icon'; touchLink.href=icon192;
+  document.head.appendChild(touchLink);
+  const faviconLink = document.createElement('link');
+  faviconLink.rel='icon'; faviconLink.href=genIcon(64);
+  document.head.appendChild(faviconLink);
+} catch(e){ console.warn('PWA icon generation skipped:', e); }
+
+try {
+  const sw=`self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>new Response(''))));`;
+  const swBlob=new Blob([sw],{type:'application/javascript'});
+  navigator.serviceWorker?.register(URL.createObjectURL(swBlob));
+} catch(e){ console.warn('SW registration skipped:', e); }
+</script>
+</body>
+</html>
