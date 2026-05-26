@@ -8,6 +8,8 @@
 <title>StratOS — Strategy Intelligence Platform</title>
 <link rel="manifest" id="manifest-placeholder"/>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.6.0/jspdf.plugin.autotable.min.js"></script>
 <style>
 :root{
   --bg:#0a0f1e;--bg2:#0f1628;--bg3:#141d35;--bg4:#1a2444;
@@ -197,6 +199,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     <span style="font-size:1.2rem;letter-spacing:2px">STRAT</span><span style="font-size:1rem;letter-spacing:3px;opacity:0.9">OS</span>
   </div>
   <div class="header-right">
+    <button class="btn btn-gold btn-sm" onclick="exportPDF()" id="export-btn" style="gap:5px;padding:7px 13px">⬇ Export PDF</button>
     <span class="api-badge">Claude AI</span>
     <input id="apiKeyInput" type="password" placeholder="Enter Anthropic API Key…"/>
   </div>
@@ -793,31 +796,184 @@ function updateDashboard(){
   ].join('');
 }
 
+// ===================== TOKEN INTELLIGENCE ENGINE =====================
+const TOKEN = {
+  // Cumulative session metrics
+  session: { inputTokens:0, outputTokens:0, cacheWrite:0, cacheRead:0, calls:0, savedTokens:0 },
+
+  // Per-call-type max_tokens budget (right-sized, not wasteful)
+  budget: {
+    narrative:600, swot:700, pestle:600, kr_suggest:400,
+    kpi_report:700, risk_mitigate:800, advisor:900, default:600
+  },
+
+  // Cost rates (USD per 1M tokens) — claude-sonnet-4
+  rates: { input:3.0, output:15.0, cacheWrite:3.75, cacheRead:0.30 },
+
+  // Compressed context — only what each call type actually needs
+  context: {
+    canvas() {
+      const c = state.canvas;
+      return `Org:${c.orgName||'?'} | Vision:${c.vision||'?'} | Mission:${c.mission||'?'} | Period:${c.period} | Pillars:${c.pillars||'?'}`;
+    },
+    okrs() {
+      return state.okrs.map(o=>`[${o.quarter}] ${o.objective} → KRs: ${o.krs.join(' | ')}`).join('\n') || 'None';
+    },
+    initiatives() {
+      return state.initiatives.map(i=>`${i.name}(${i.status},${i.progress}%)`).join(', ') || 'None';
+    },
+    kpis() {
+      return state.kpis.map(k=>`${k.name}:${k.current}/${k.target}${k.unit}`).join(' | ') || 'None';
+    },
+    risks() {
+      return state.risks.map(r=>`${r.name}(L${r.likelihood}×I${r.impact}=${r.likelihood*r.impact})`).join(' | ') || 'None';
+    },
+    full() {
+      return [TOKEN.context.canvas(), `OKRs: ${TOKEN.context.okrs()}`,
+              `Initiatives: ${TOKEN.context.initiatives()}`,
+              `KPIs: ${TOKEN.context.kpis()}`, `Risks: ${TOKEN.context.risks()}`].join('\n');
+    }
+  },
+
+  // Build a cached system block using Anthropic prompt caching
+  cachedSystem(roleText) {
+    // The strategy context is large + reused — mark for caching
+    // Cached tokens cost 10% of input price on re-use
+    return [
+      { type:'text', text: roleText },
+      { type:'text', text: `\n\nSTRATEGY CONTEXT (use this as reference for all responses):\n${TOKEN.context.full()}`,
+        cache_control:{ type:'ephemeral' } }  // ← Anthropic prompt cache
+    ];
+  },
+
+  record(usage) {
+    if(!usage) return;
+    const s = TOKEN.session;
+    s.calls++;
+    s.inputTokens  += usage.input_tokens  || 0;
+    s.outputTokens += usage.output_tokens || 0;
+    s.cacheWrite   += usage.cache_creation_input_tokens || 0;
+    s.cacheRead    += usage.cache_read_input_tokens     || 0;
+    // Tokens saved = cache reads that would have been full input tokens
+    s.savedTokens  += usage.cache_read_input_tokens     || 0;
+    TOKEN.renderWidget();
+  },
+
+  costUSD() {
+    const s = TOKEN.session, r = TOKEN.rates;
+    const cost = (s.inputTokens/1e6)*r.input + (s.outputTokens/1e6)*r.output
+               + (s.cacheWrite/1e6)*r.cacheWrite + (s.cacheRead/1e6)*r.cacheRead;
+    const wouldHaveCost = cost + (s.savedTokens/1e6)*(r.input - r.cacheRead);
+    return { cost, saved: wouldHaveCost - cost };
+  },
+
+  fmt(n){ return n>=1000?`${(n/1000).toFixed(1)}k`:String(n); },
+
+  renderWidget() {
+    const w = document.getElementById('token-widget');
+    if(!w) return;
+    const s = TOKEN.session, { cost, saved } = TOKEN.costUSD();
+    const hitRate = s.cacheRead+s.cacheWrite > 0
+      ? Math.round((s.cacheRead/(s.cacheRead+s.cacheWrite))*100) : 0;
+    w.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-family:var(--font-head);font-size:0.72rem;color:var(--gold2);letter-spacing:1px">TOKEN INTELLIGENCE</span>
+        <span class="tag tag-cyan" style="font-size:0.6rem">${s.calls} CALL${s.calls!==1?'S':''}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+        <div style="background:rgba(0,0,0,0.3);border-radius:6px;padding:7px">
+          <div style="font-size:0.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Input</div>
+          <div style="font-family:var(--font-mono);font-size:0.9rem;color:var(--text)">${TOKEN.fmt(s.inputTokens)}</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.3);border-radius:6px;padding:7px">
+          <div style="font-size:0.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Output</div>
+          <div style="font-family:var(--font-mono);font-size:0.9rem;color:var(--text)">${TOKEN.fmt(s.outputTokens)}</div>
+        </div>
+        <div style="background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);border-radius:6px;padding:7px">
+          <div style="font-size:0.6rem;color:var(--green);text-transform:uppercase;letter-spacing:.5px">Cache Read</div>
+          <div style="font-family:var(--font-mono);font-size:0.9rem;color:var(--green)">${TOKEN.fmt(s.cacheRead)}</div>
+        </div>
+        <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:6px;padding:7px">
+          <div style="font-size:0.6rem;color:var(--gold);text-transform:uppercase;letter-spacing:.5px">Cache Write</div>
+          <div style="font-family:var(--font-mono);font-size:0.9rem;color:var(--gold2)">${TOKEN.fmt(s.cacheWrite)}</div>
+        </div>
+      </div>
+      <div style="background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.2);border-radius:8px;padding:8px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:0.68rem;color:var(--green)">Cache Hit Rate</span>
+          <span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--green)">${hitRate}%</span>
+        </div>
+        <div style="background:rgba(0,0,0,0.3);border-radius:20px;height:4px">
+          <div style="height:4px;border-radius:20px;width:${hitRate}%;background:linear-gradient(90deg,#00b37a,var(--green));transition:width .5s"></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:2px">
+        <span style="color:var(--text3)">Session cost</span>
+        <span style="font-family:var(--font-mono);color:var(--text2)">$${cost.toFixed(4)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.7rem">
+        <span style="color:var(--green)">💰 Tokens saved</span>
+        <span style="font-family:var(--font-mono);color:var(--green)">${TOKEN.fmt(s.savedTokens)} (~$${saved.toFixed(4)})</span>
+      </div>`;
+  }
+};
+
 // ===================== AI HELPERS =====================
 function getApiKey(){ return document.getElementById('apiKeyInput').value.trim(); }
-function getStrategyContext(){
-  const c = state.canvas;
-  return `Organization: ${c.orgName||'Not set'}\nVision: ${c.vision||'Not set'}\nMission: ${c.mission||'Not set'}\nPeriod: ${c.period||'Not set'}\nPillars: ${c.pillars||'Not set'}\nOKRs: ${state.okrs.map(o=>o.objective).join('; ')||'None'}\nInitiatives: ${state.initiatives.map(i=>i.name+' ('+i.status+')').join('; ')||'None'}\nKPIs: ${state.kpis.map(k=>k.name+': '+k.current+'/'+k.target+' '+k.unit).join('; ')||'None'}\nRisks: ${state.risks.map(r=>r.name+' (score:'+(r.likelihood*r.impact)+')').join('; ')||'None'}`;
-}
 
-async function callClaude(systemPrompt, userMsg, outputId){
+function getStrategyContext(){ return TOKEN.context.full(); }
+
+async function callClaude(systemPrompt, userMsg, outputId, callType='default'){
   const key = getApiKey();
   if(!key){ toast('Enter your Anthropic API key','error'); return; }
   const out = document.getElementById(outputId);
   out.style.display='flex'; out.className='ai-output loading';
-  out.innerHTML='<div class="spinner"></div><span>Claude is analyzing your strategy…</span>';
+  out.innerHTML='<div class="spinner"></div><span>Claude is analyzing… <span style="color:var(--gold);font-family:var(--font-mono);font-size:0.75rem" id="thinking-label">warming up cache</span></span>';
+
+  // Smart max_tokens — right-sized per call type (avoids wasting tokens)
+  const maxTok = TOKEN.budget[callType] || TOKEN.budget.default;
+
+  // Build cached system — role + strategy context with cache_control
+  const systemBlocks = TOKEN.cachedSystem(systemPrompt);
+
   try{
     const res = await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, system: systemPrompt, messages:[{role:'user',content:userMsg}] })
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': key,
+        'anthropic-version':'2023-06-01',
+        'anthropic-beta':'prompt-caching-2024-07-31',          // ← enable caching
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body: JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens: maxTok,
+        system: systemBlocks,                                   // ← cached system
+        messages:[{ role:'user', content: userMsg }]
+      })
     });
     const data = await res.json();
-    if(data.error){ out.className='ai-output'; out.innerHTML='<span style="color:var(--red)">Error: '+esc(data.error.message)+'</span>'; return; }
+    if(data.error){ out.className='ai-output'; out.innerHTML=`<span style="color:var(--red)">Error: ${esc(data.error.message)}</span>`; return; }
+
+    // Record token usage (including cache metrics)
+    TOKEN.record(data.usage);
+
     const text = data.content.map(c=>c.text||'').join('');
     out.className='ai-output';
-    out.innerHTML = marked(text);
-  }catch(e){ out.className='ai-output'; out.innerHTML='<span style="color:var(--red)">Request failed. Check your API key.</span>'; }
+
+    // Show cache status badge inside the output
+    const u = data.usage||{};
+    const cacheHit = (u.cache_read_input_tokens||0) > 0;
+    const cacheBadge = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:5px 10px;background:${cacheHit?'rgba(0,229,160,0.08)':'rgba(201,168,76,0.06)'};border:1px solid ${cacheHit?'rgba(0,229,160,0.25)':'rgba(201,168,76,0.2)'};border-radius:6px;font-size:0.68rem;font-family:var(--font-mono)">
+      <span style="color:${cacheHit?'var(--green)':'var(--gold)'};">${cacheHit?'⚡ Cache HIT':'✦ Cache WRITE'}</span>
+      <span style="color:var(--text3)">In:${u.input_tokens||0} · Out:${u.output_tokens||0} · CacheRead:${u.cache_read_input_tokens||0} · CacheWrite:${u.cache_creation_input_tokens||0} · Budget:${maxTok}</span>
+    </div>`;
+    out.innerHTML = cacheBadge + marked(text);
+  }catch(e){
+    out.className='ai-output';
+    out.innerHTML=`<span style="color:var(--red)">Request failed. Check your API key and network.</span>`;
+  }
 }
 
 // Minimal markdown-to-HTML
@@ -832,33 +988,46 @@ function marked(text){
     .replace(/\n/g,'<br/>');
 }
 
+// Each function passes its call-type for right-sized max_tokens
 function generateNarrative(){
-  callClaude('You are an expert strategy consultant. Write professional, compelling strategy narratives.',
-    `Create a 200-word strategic narrative for:\n${getStrategyContext()}`, 'narrative-output');
+  callClaude(
+    'You are an expert strategy consultant. Write a professional, compelling strategy narrative in 200 words. Be crisp.',
+    `Create a strategic narrative:\n${TOKEN.context.canvas()}\nOKRs:${TOKEN.context.okrs()}`,
+    'narrative-output', 'narrative');
 }
 function analyzeSwot(){
   const d = state.swot;
-  callClaude('You are a strategic analysis expert specializing in SWOT. Be concise and actionable.',
-    `Analyze this SWOT and provide 3 SO strategies, 2 ST strategies, and key priorities:\nStrengths: ${d.s}\nWeaknesses: ${d.w}\nOpportunities: ${d.o}\nThreats: ${d.t}`, 'swot-ai-output');
+  callClaude(
+    'You are a strategic analysis expert. Provide concise, actionable SWOT synthesis.',
+    `Analyze: S:${d.s}\nW:${d.w}\nO:${d.o}\nT:${d.t}\nGive 3 SO strategies, 2 ST strategies, top 3 priorities.`,
+    'swot-ai-output', 'swot');
 }
 function analyzePestle(){
   const d = state.pestle;
-  callClaude('You are a strategic environment analyst. Synthesize PESTLE into actionable insights.',
-    `Synthesize this PESTLE into top 3 strategic implications and recommended responses:\nPolitical: ${d.p}\nEconomic: ${d.e}\nSocial: ${d.s}\nTechnological: ${d.t}\nLegal: ${d.l}\nEnvironmental: ${d.env}`, 'pestle-ai-output');
+  callClaude(
+    'You are a strategic environment analyst. Synthesize PESTLE into exactly 3 strategic implications + recommended responses.',
+    `P:${d.p}\nE:${d.e}\nS:${d.s}\nT:${d.t}\nL:${d.l}\nEnv:${d.env}`,
+    'pestle-ai-output', 'pestle');
 }
 function aiSuggestKRs(){
   const obj = v('okr-obj').trim();
   if(!obj){ toast('Enter an objective first','error'); return; }
-  callClaude('You are an OKR expert. Suggest measurable, time-bound Key Results.',
-    `Suggest 3 strong Key Results for this Objective in the context of: ${getStrategyContext()}\n\nObjective: ${obj}`, 'kr-suggest');
+  callClaude(
+    'You are an OKR expert. Suggest 3 strong, measurable, time-bound Key Results. Be concise.',
+    `Org context: ${TOKEN.context.canvas()}\nObjective: ${obj}`,
+    'kr-suggest', 'kr_suggest');
 }
 function generateKPIReport(){
-  callClaude('You are a performance management expert. Give concise, actionable KPI health assessments.',
-    `Generate a KPI Health Report:\n${state.kpis.map(k=>`${k.name}: Current ${k.current}${k.unit}, Target ${k.target}${k.unit} (${k.cat})`).join('\n')}\nContext: ${getStrategyContext()}`, 'kpi-ai-output');
+  callClaude(
+    'You are a performance management expert. Give a concise KPI health assessment with RAG status and recommended actions.',
+    `KPIs:\n${state.kpis.map(k=>`${k.name}: ${k.current}/${k.target}${k.unit} (${k.cat})`).join('\n')}`,
+    'kpi-ai-output', 'kpi_report');
 }
 function aiMitigate(){
-  callClaude('You are a risk management expert. Provide specific mitigation strategies.',
-    `Create a prioritized mitigation plan for these strategic risks:\n${state.risks.map(r=>`${r.name} (L:${r.likelihood} I:${r.impact} Score:${r.likelihood*r.impact}): ${r.mitigation||'No plan yet'}`).join('\n')}\nContext: ${getStrategyContext()}`, 'risk-ai-output');
+  callClaude(
+    'You are a risk management expert. Give a prioritized mitigation plan. Be specific and actionable.',
+    `Risks:\n${state.risks.map(r=>`${r.name}(L:${r.likelihood} I:${r.impact} Score:${r.likelihood*r.impact}): ${r.mitigation||'No plan'}`).join('\n')}`,
+    'risk-ai-output', 'risk_mitigate');
 }
 
 function quickPrompt(q){ sv('advisor-q',q); showPage('advisor'); askAdvisor(); }
@@ -867,12 +1036,11 @@ async function askAdvisor(){
   const q = v('advisor-q').trim();
   if(!q){ toast('Enter a question','error'); return; }
   const includeCtx = document.getElementById('advisor-context').checked;
-  const context = includeCtx?'\n\nMy Strategy Context:\n'+getStrategyContext():'';
-  const fullQ = q + context;
-  // add to history
   state.advisorHistory.push({role:'user',q,ts:new Date().toLocaleTimeString()});
-  const system = 'You are StratOS AI Advisor — a world-class strategy consultant combining McKinsey rigor with Silicon Valley speed. Be specific, structured, and actionable. Use markdown formatting.';
-  await callClaude(system, fullQ, 'advisor-output');
+  // Advisor: always cache system+context; only append question (no duplicate context in user msg)
+  const userMsg = includeCtx ? q : q;  // context is baked into cached system
+  const system = 'You are StratOS AI Advisor — a world-class strategy consultant combining McKinsey rigor with Silicon Valley speed. Be specific, structured, and actionable. Use markdown.';
+  await callClaude(system, userMsg, 'advisor-output', 'advisor');
   const outEl = document.getElementById('advisor-output');
   state.advisorHistory.push({role:'ai',q:outEl.innerHTML,ts:new Date().toLocaleTimeString()});
   renderAdvisorHistory();
@@ -990,7 +1158,646 @@ function loadDemo(){
   toast('🌱 ZeroMile Foods demo loaded! Explore all modules.','success');
 }
 
-// ===================== UTILS =====================
+// ===================== PDF EXPORT =====================
+async function exportPDF(){
+  if(typeof window.jspdf === 'undefined' && typeof jspdf === 'undefined'){
+    toast('PDF library loading, please try again','error'); return;
+  }
+  const btn = document.getElementById('export-btn');
+  btn.disabled = true; btn.textContent = '⏳ Building PDF…';
+
+  try {
+    const { jsPDF } = window.jspdf || jspdf;
+    const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+    const PW = 210, PH = 297;
+    const M = 18; // margin
+    const CW = PW - M*2; // content width
+    const NAVY = [10,15,30], GOLD = [201,168,76], GOLD2=[232,201,106];
+    const WHITE=[255,255,255], LGRAY=[245,246,250], DGRAY=[80,90,120];
+    const GREEN=[0,180,120], RED=[220,60,80], ORANGE=[230,120,40], CYAN=[0,180,220];
+
+    let pg = 0;
+
+    // ── helpers ──────────────────────────────────────────────
+    function newPage(){ doc.addPage(); pg++; addPageFooter(); }
+
+    function addPageFooter(){
+      const org = state.canvas.orgName || 'StratOS Strategy Report';
+      doc.setFillColor(...NAVY);
+      doc.rect(0, PH-10, PW, 10, 'F');
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7); doc.setTextColor(...GOLD);
+      doc.text(org, M, PH-3.5);
+      doc.text(`Page ${pg+1}`, PW-M, PH-3.5, {align:'right'});
+      doc.setTextColor(...GOLD2);
+      doc.text('StratOS · Confidential', PW/2, PH-3.5, {align:'center'});
+    }
+
+    function sectionHeader(title, subtitle=''){
+      doc.setFillColor(...NAVY);
+      doc.rect(0, 0, PW, 22, 'F');
+      // gold accent bar
+      doc.setFillColor(...GOLD);
+      doc.rect(0, 22, PW, 1.2, 'F');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(15); doc.setTextColor(...GOLD2);
+      doc.text(title, M, 14);
+      if(subtitle){
+        doc.setFontSize(8); doc.setTextColor(...GOLD);
+        doc.text(subtitle, M, 19.5);
+      }
+    }
+
+    function sectionTag(label, x, y, color=GOLD){
+      doc.setFillColor(...color.map(v=>Math.max(0,v-150)));
+      doc.roundedRect(x, y-4, doc.getTextWidth(label)+6, 5.5, 1, 1, 'F');
+      doc.setTextColor(...color);
+      doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text(label, x+3, y);
+    }
+
+    function progressBar(x, y, w, h, pct, color=GOLD){
+      doc.setFillColor(230,232,240);
+      doc.roundedRect(x, y, w, h, h/2, h/2, 'F');
+      if(pct>0){
+        doc.setFillColor(...color);
+        doc.roundedRect(x, y, Math.max(h, w*(pct/100)), h, h/2, h/2, 'F');
+      }
+    }
+
+    function bodyText(text, x, y, maxW, size=9, color=DGRAY){
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(size); doc.setTextColor(...color);
+      const lines = doc.splitTextToSize(text||'—', maxW);
+      doc.text(lines, x, y);
+      return lines.length * (size * 0.45);
+    }
+
+    function label(text, x, y, size=7, color=DGRAY){
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(size); doc.setTextColor(...color);
+      doc.text(text.toUpperCase(), x, y);
+    }
+
+    function divider(y){ doc.setDrawColor(220,224,235); doc.setLineWidth(0.3); doc.line(M, y, PW-M, y); }
+
+    // ══════════════════════════════════════════════════
+    // PAGE 1 — COVER
+    // ══════════════════════════════════════════════════
+    pg = 0;
+    // Full navy background
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 0, PW, PH, 'F');
+
+    // Radial glow effect (simulated as ellipses)
+    doc.setFillColor(20,32,65);
+    doc.ellipse(PW/2, 60, 90, 55, 'F');
+    doc.setFillColor(15,24,52);
+    doc.ellipse(PW/2, 60, 70, 40, 'F');
+
+    // Hexagon logo (vector drawn)
+    const hx=PW/2, hy=72, hr=22;
+    const hexPts6 = (r,rot=0)=>{
+      let pts=[];
+      for(let i=0;i<6;i++){ const a=i*Math.PI/3+rot; pts.push([hx+r*Math.cos(a), hy+r*Math.sin(a)]); }
+      return pts;
+    };
+    const drawHex=(r,rot,sw,clr)=>{
+      const pts=hexPts6(r,rot);
+      doc.setDrawColor(...clr); doc.setLineWidth(sw);
+      doc.lines(pts.map((p,i)=>{
+        const nx=pts[(i+1)%6]; return [nx[0]-p[0], nx[1]-p[1]];
+      }), pts[0][0], pts[0][1], [1,1], 'S', true);
+    };
+    drawHex(hr, -Math.PI/6, 0.8, GOLD);
+    drawHex(hr*0.68, -Math.PI/6, 0.5, GOLD2);
+    // Center fill
+    const cp = hexPts6(hr*0.38, -Math.PI/6);
+    doc.setFillColor(...GOLD);
+    doc.lines(cp.map((p,i)=>{ const nx=cp[(i+1)%6]; return [nx[0]-p[0],nx[1]-p[1]]; }), cp[0][0], cp[0][1],[1,1],'F',true);
+
+    // STRATOS title
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(36); doc.setTextColor(...GOLD2);
+    doc.text('STRAT', PW/2-2, 108, {align:'right'});
+    doc.setFontSize(24); doc.setTextColor(...GOLD);
+    doc.text('OS', PW/2, 108);
+
+    // Gold divider
+    doc.setFillColor(...GOLD);
+    doc.rect(M+20, 114, CW-40, 0.8, 'F');
+
+    // Subtitle
+    doc.setFontSize(11); doc.setFont('helvetica','normal');
+    doc.setTextColor(160,175,210);
+    doc.text('Strategy Intelligence Report', PW/2, 122, {align:'center'});
+
+    // Org name
+    const orgName = state.canvas.orgName || 'Your Organization';
+    doc.setFontSize(22); doc.setFont('helvetica','bold');
+    doc.setTextColor(...WHITE);
+    doc.text(orgName, PW/2, 148, {align:'center'});
+
+    // Period badge
+    doc.setFillColor(25,38,72);
+    doc.roundedRect(PW/2-35, 155, 70, 10, 2, 2, 'F');
+    doc.setFontSize(9); doc.setTextColor(...GOLD2);
+    doc.text(state.canvas.period||'FY 2025–26', PW/2, 161.5, {align:'center'});
+
+    // Stats strip
+    doc.setFillColor(20,29,53);
+    doc.rect(M, 185, CW, 28, 'F');
+    doc.setFillColor(...GOLD); doc.rect(M, 185, CW, 0.8, 'F');
+    const stats = [
+      ['OKRs',state.okrs.length], ['Initiatives',state.initiatives.length],
+      ['KPIs',state.kpis.length], ['Risks',state.risks.length]
+    ];
+    stats.forEach(([lbl,val],i)=>{
+      const x = M + (CW/4)*i + CW/8;
+      doc.setFontSize(18); doc.setFont('helvetica','bold'); doc.setTextColor(...GOLD2);
+      doc.text(String(val), x, 199, {align:'center'});
+      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(130,145,180);
+      doc.text(lbl.toUpperCase(), x, 207, {align:'center'});
+    });
+
+    // Vision preview
+    if(state.canvas.vision){
+      doc.setFontSize(8); doc.setFont('helvetica','italic'); doc.setTextColor(130,150,200);
+      const vLines = doc.splitTextToSize(`"${state.canvas.vision}"`, CW);
+      doc.text(vLines.slice(0,3), PW/2, 228, {align:'center'});
+    }
+
+    // Date & credit
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(70,85,120);
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}`, PW/2, 272, {align:'center'});
+    doc.setTextColor(...GOLD);
+    doc.text('Designed & Architected by Krishnamurthy Kandregula · Made by Claude', PW/2, 278, {align:'center'});
+    doc.setFillColor(...NAVY); doc.rect(0, PH-10, PW, 10, 'F');
+    doc.setTextColor(...GOLD2); doc.setFontSize(7);
+    doc.text('STRATOS · Strategy Intelligence Platform · Confidential', PW/2, PH-3.5, {align:'center'});
+
+    // ══════════════════════════════════════════════════
+    // PAGE 2 — STRATEGY CANVAS
+    // ══════════════════════════════════════════════════
+    newPage();
+    sectionHeader('Strategy Canvas', 'Vision · Mission · Values · Strategic Pillars');
+    let y = 32;
+
+    // Vision block
+    doc.setFillColor(245,247,252);
+    doc.roundedRect(M, y, CW, 32, 2, 2, 'F');
+    doc.setFillColor(...GOLD); doc.rect(M, y, 3, 32, 'F');
+    label('Vision', M+7, y+7);
+    bodyText(state.canvas.vision||'Not defined', M+7, y+13, CW-14, 9, [30,40,70]);
+    y += 38;
+
+    // Mission block
+    doc.setFillColor(245,247,252);
+    doc.roundedRect(M, y, CW, 32, 2, 2, 'F');
+    doc.setFillColor(0,180,220); doc.rect(M, y, 3, 32, 'F');
+    label('Mission', M+7, y+7);
+    bodyText(state.canvas.mission||'Not defined', M+7, y+13, CW-14, 9, [30,40,70]);
+    y += 38;
+
+    // Values
+    doc.setFillColor(...LGRAY);
+    doc.roundedRect(M, y, CW/2-4, 22, 2, 2, 'F');
+    label('Core Values', M+5, y+7);
+    bodyText(state.canvas.values||'—', M+5, y+13, CW/2-12, 8.5, [50,60,100]);
+    // Period
+    doc.setFillColor(...LGRAY);
+    doc.roundedRect(M+CW/2+4, y, CW/2-4, 22, 2, 2, 'F');
+    label('Strategic Period', M+CW/2+9, y+7);
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...GOLD);
+    doc.text(state.canvas.period||'—', M+CW/2+9, y+17);
+    y += 28;
+
+    // Pillars
+    const pillars = (state.canvas.pillars||'').split('\n').filter(p=>p.trim());
+    if(pillars.length){
+      label('Strategic Pillars', M, y+6);
+      y += 10;
+      pillars.forEach((p,i)=>{
+        doc.setFillColor(...NAVY);
+        doc.roundedRect(M, y, CW, 10, 2, 2, 'F');
+        doc.setFillColor(...GOLD);
+        doc.roundedRect(M, y, 8, 10, 2, 2, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE);
+        doc.text(String(i+1), M+4, y+6.5, {align:'center'});
+        doc.setFont('helvetica','normal'); doc.setTextColor(200,210,235);
+        doc.text(p.trim(), M+12, y+6.5);
+        y += 13;
+      });
+    }
+    addPageFooter();
+
+    // ══════════════════════════════════════════════════
+    // PAGE 3 — SWOT ANALYSIS
+    // ══════════════════════════════════════════════════
+    newPage();
+    sectionHeader('SWOT Analysis', 'Strengths · Weaknesses · Opportunities · Threats');
+    y = 30;
+
+    const swotData = [
+      {k:'Strengths', color:[0,160,100], bg:[235,252,245], text:state.swot.s},
+      {k:'Weaknesses', color:[200,50,70], bg:[252,237,240], text:state.swot.w},
+      {k:'Opportunities', color:[0,160,210], bg:[235,246,252], text:state.swot.o},
+      {k:'Threats', color:[210,120,0], bg:[252,245,235], text:state.swot.t}
+    ];
+    const hw = CW/2 - 3;
+    swotData.forEach((s,i)=>{
+      const sx = M + (i%2)*(hw+6);
+      const sy = y + Math.floor(i/2)*108;
+      doc.setFillColor(...s.bg);
+      doc.roundedRect(sx, sy, hw, 104, 3, 3, 'F');
+      doc.setFillColor(...s.color);
+      doc.roundedRect(sx, sy, hw, 14, 3, 3, 'F');
+      doc.rect(sx, sy+8, hw, 6, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...WHITE);
+      doc.text(s.k.toUpperCase(), sx+7, sy+9.5);
+      // bullet points
+      const lines = (s.text||'Not defined').split('\n').filter(l=>l.trim());
+      let ty = sy+20;
+      lines.slice(0,6).forEach(line=>{
+        const clean = line.replace(/^[•·\-\*]+\s*/,'');
+        doc.setFillColor(...s.color);
+        doc.circle(sx+7, ty-1.5, 1, 'F');
+        const wrapped = doc.splitTextToSize(clean, hw-18);
+        doc.setFont('helvetica','normal'); doc.setFontSize(7.8); doc.setTextColor(40,50,80);
+        doc.text(wrapped[0]||'', sx+11, ty);
+        ty += 7.5 + (wrapped.length>1?4:0);
+        if(ty>sy+98) return;
+      });
+    });
+    addPageFooter();
+
+    // ══════════════════════════════════════════════════
+    // PAGE 4 — PESTLE ANALYSIS
+    // ══════════════════════════════════════════════════
+    newPage();
+    sectionHeader('PESTLE Analysis', 'Political · Economic · Social · Technological · Legal · Environmental');
+    y = 30;
+
+    const pestleData = [
+      {k:'Political', icon:'P', color:[130,60,200], text:state.pestle.p},
+      {k:'Economic', icon:'E', color:[0,150,80], text:state.pestle.e},
+      {k:'Social', icon:'S', color:[0,150,210], text:state.pestle.s},
+      {k:'Technological', icon:'T', color:[201,168,76], text:state.pestle.t},
+      {k:'Legal', icon:'L', color:[210,80,40], text:state.pestle.l},
+      {k:'Environmental', icon:'E', color:[40,160,60], text:state.pestle.env}
+    ];
+    const pw2 = CW/2-3, ph2 = 68;
+    pestleData.forEach((p,i)=>{
+      const px2 = M + (i%2)*(pw2+6);
+      const py2 = y + Math.floor(i/2)*(ph2+5);
+      doc.setFillColor(...LGRAY);
+      doc.roundedRect(px2, py2, pw2, ph2, 3, 3, 'F');
+      // colored left bar
+      doc.setFillColor(...p.color);
+      doc.roundedRect(px2, py2, 10, ph2, 3, 3, 'F');
+      doc.rect(px2+5, py2, 5, ph2, 'F');
+      // icon letter
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...WHITE);
+      doc.text(p.icon, px2+5, py2+8, {align:'center'});
+      // label
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...p.color);
+      doc.text(p.k, px2+14, py2+7);
+      // content
+      const lines2 = doc.splitTextToSize(p.text||'Not defined', pw2-18);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.8); doc.setTextColor(50,60,90);
+      doc.text(lines2.slice(0,5), px2+14, py2+14);
+    });
+    addPageFooter();
+
+    // ══════════════════════════════════════════════════
+    // PAGE 5 — OKRs
+    // ══════════════════════════════════════════════════
+    if(state.okrs.length){
+      newPage();
+      sectionHeader('OKR Workbench', 'Objectives & Key Results with Progress Tracking');
+      y = 30;
+      state.okrs.forEach((okr,oi)=>{
+        if(y > PH-60){ newPage(); sectionHeader('OKRs (continued)'); y=30; }
+        // Objective header
+        doc.setFillColor(...NAVY);
+        doc.roundedRect(M, y, CW, 12, 2, 2, 'F');
+        doc.setFillColor(...GOLD); doc.roundedRect(M, y, 22, 12, 2, 2, 'F');
+        doc.rect(M+18, y, 4, 12, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...WHITE);
+        doc.text('O'+(oi+1), M+11, y+7.5, {align:'center'});
+        doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(210,220,245);
+        doc.text(okr.objective, M+26, y+7.5);
+        // Quarter badge
+        sectionTag(okr.quarter||'Q?', PW-M-20, y+7.5, GOLD2);
+        y += 15;
+        // Key Results
+        okr.krs.forEach((kr,ki)=>{
+          if(y > PH-30){ newPage(); sectionHeader('OKRs (continued)'); y=30; }
+          doc.setFillColor(...LGRAY);
+          doc.roundedRect(M+4, y, CW-4, 16, 2, 2, 'F');
+          doc.setFont('helvetica','normal'); doc.setFontSize(7.8); doc.setTextColor(50,65,100);
+          const klines = doc.splitTextToSize(`KR${ki+1}: ${kr}`, CW-60);
+          doc.text(klines[0], M+10, y+6);
+          const pct = okr.progress[ki]||0;
+          const barColor = pct>=70?GREEN:pct>=40?ORANGE:RED;
+          progressBar(M+10, y+9, CW-70, 3, pct, barColor);
+          doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...GOLD);
+          doc.text(`${pct}%`, PW-M-6, y+12, {align:'right'});
+          y += 19;
+        });
+        y += 4;
+      });
+      addPageFooter();
+    }
+
+    // ══════════════════════════════════════════════════
+    // PAGE 6 — INITIATIVES
+    // ══════════════════════════════════════════════════
+    if(state.initiatives.length){
+      newPage();
+      sectionHeader('Strategic Initiatives', 'Execution Tracker — Owner · Status · Priority · Progress');
+      y = 30;
+      const statusColor = s=>s==='Completed'?[0,150,100]:s==='In Progress'?[0,150,200]:s==='At Risk'?[200,50,70]:s==='On Hold'?[180,120,0]:[100,110,140];
+      const prioColor = p=>p==='High'?[200,50,70]:p==='Medium'?[180,120,0]:[0,150,100];
+
+      doc.autoTable({
+        startY: y,
+        margin:{left:M, right:M},
+        head:[['#','Initiative','Owner','OKR / Pillar','Status','Priority','Progress','Due']],
+        body: state.initiatives.map((it,i)=>[
+          i+1, it.name, it.owner||'—', it.okr||'—',
+          it.status, it.priority, `${it.progress}%`, it.due||'—'
+        ]),
+        headStyles:{fillColor:NAVY, textColor:GOLD2, fontSize:7.5, fontStyle:'bold', cellPadding:3},
+        bodyStyles:{fontSize:7.5, textColor:[40,50,80], cellPadding:2.5},
+        alternateRowStyles:{fillColor:[248,249,252]},
+        columnStyles:{
+          0:{cellWidth:8, halign:'center'},
+          1:{cellWidth:44},
+          2:{cellWidth:26},
+          3:{cellWidth:28},
+          4:{cellWidth:20, halign:'center'},
+          5:{cellWidth:17, halign:'center'},
+          6:{cellWidth:16, halign:'center'},
+          7:{cellWidth:14, halign:'center'}
+        },
+        didDrawCell:(data)=>{
+          if(data.section==='body'){
+            if(data.column.index===4){
+              const s=state.initiatives[data.row.index]?.status;
+              const c=statusColor(s);
+              doc.setFillColor(...c.map(v=>Math.min(255,v+170)));
+              doc.roundedRect(data.cell.x+1,data.cell.y+1.5,data.cell.width-2,data.cell.height-3,1,1,'F');
+              doc.setTextColor(...c); doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+              doc.text(s,data.cell.x+data.cell.width/2,data.cell.y+data.cell.height/2+1,{align:'center'});
+            }
+            if(data.column.index===5){
+              const p=state.initiatives[data.row.index]?.priority;
+              const c=prioColor(p);
+              doc.setFillColor(...c.map(v=>Math.min(255,v+170)));
+              doc.roundedRect(data.cell.x+1,data.cell.y+1.5,data.cell.width-2,data.cell.height-3,1,1,'F');
+              doc.setTextColor(...c); doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+              doc.text(p,data.cell.x+data.cell.width/2,data.cell.y+data.cell.height/2+1,{align:'center'});
+            }
+            if(data.column.index===6){
+              const pct=state.initiatives[data.row.index]?.progress||0;
+              const c=pct>=70?GREEN:pct>=40?ORANGE:RED;
+              progressBar(data.cell.x+1,data.cell.y+data.cell.height-4.5,data.cell.width-2,2.5,pct,c);
+            }
+          }
+        },
+        didParseCell:(data)=>{
+          if(data.section==='body'&&(data.column.index===4||data.column.index===5||data.column.index===6)){
+            data.cell.text=[''];
+          }
+        }
+      });
+      addPageFooter();
+    }
+
+    // ══════════════════════════════════════════════════
+    // PAGE 7 — KPI MONITOR
+    // ══════════════════════════════════════════════════
+    if(state.kpis.length){
+      newPage();
+      sectionHeader('KPI Performance Monitor', 'Key Performance Indicators vs. Targets');
+      y = 30;
+      const colW = CW/2-4;
+      state.kpis.forEach((k,i)=>{
+        if(y > PH-55){ newPage(); sectionHeader('KPI Monitor (continued)'); y=30; }
+        const kx = M + (i%2)*(colW+8);
+        if(i%2===0 && i>0) y += 0; // managed by row
+        const cur = parseFloat(k.current)||0, tgt = parseFloat(k.target)||1;
+        let pct = Math.min(100, Math.round(k.dir==='down'?(tgt/Math.max(cur,0.001))*100:(cur/tgt)*100));
+        const kColor = pct>=90?GREEN:pct>=60?ORANGE:RED;
+
+        doc.setFillColor(...LGRAY);
+        doc.roundedRect(kx, y, colW, 32, 3, 3, 'F');
+        doc.setFillColor(...kColor);
+        doc.roundedRect(kx, y, colW, 4, 3, 3, 'F');
+        doc.rect(kx, y+2, colW, 2, 'F');
+
+        doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(60,75,110);
+        doc.text(k.name, kx+6, y+11);
+        doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...NAVY);
+        doc.text(`${k.current}${k.unit}`, kx+6, y+21);
+        doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(110,125,160);
+        doc.text(`Target: ${k.target}${k.unit}`, kx+6, y+27.5);
+        // pct badge
+        doc.setFillColor(...kColor);
+        doc.roundedRect(kx+colW-25, y+8, 22, 8, 2, 2, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...WHITE);
+        doc.text(`${pct}%`, kx+colW-14, y+13.5, {align:'center'});
+        // category
+        doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(140,155,185);
+        doc.text(k.cat, kx+colW-25, y+28, {align:'right'});
+        // bar
+        progressBar(kx+6, y+28.5, colW-12, 2.5, pct, kColor);
+
+        if(i%2===1) y += 36;
+      });
+      if(state.kpis.length%2!==0) y += 36;
+      addPageFooter();
+    }
+
+    // ══════════════════════════════════════════════════
+    // PAGE 8 — RISK RADAR
+    // ══════════════════════════════════════════════════
+    if(state.risks.length){
+      newPage();
+      sectionHeader('Risk Radar', 'Strategic Risk Register · Likelihood × Impact Assessment');
+      y = 30;
+
+      doc.autoTable({
+        startY: y,
+        margin:{left:M, right:M},
+        head:[['Risk Description','Category','Likelihood','Impact','Score','Status','Mitigation Plan']],
+        body: state.risks.map(r=>[
+          r.name, r.cat, r.likelihood, r.impact, r.likelihood*r.impact, r.status, r.mitigation||'—'
+        ]),
+        headStyles:{fillColor:NAVY, textColor:GOLD2, fontSize:7.5, fontStyle:'bold', cellPadding:3},
+        bodyStyles:{fontSize:7.5, textColor:[40,50,80], cellPadding:2.5},
+        alternateRowStyles:{fillColor:[248,249,252]},
+        columnStyles:{
+          0:{cellWidth:42},
+          1:{cellWidth:20},
+          2:{cellWidth:15,halign:'center'},
+          3:{cellWidth:12,halign:'center'},
+          4:{cellWidth:12,halign:'center'},
+          5:{cellWidth:18,halign:'center'},
+          6:{cellWidth:CW-119}
+        },
+        didDrawCell:(data)=>{
+          if(data.section==='body'){
+            if(data.column.index===4){
+              const sc=state.risks[data.row.index];
+              if(!sc) return;
+              const score=sc.likelihood*sc.impact;
+              const c=score>=15?RED:score>=8?ORANGE:GREEN;
+              doc.setFillColor(...c.map(v=>Math.min(255,v+160)));
+              doc.roundedRect(data.cell.x+1,data.cell.y+1.5,data.cell.width-2,data.cell.height-3,1,1,'F');
+              doc.setTextColor(...c); doc.setFontSize(8); doc.setFont('helvetica','bold');
+              doc.text(String(score),data.cell.x+data.cell.width/2,data.cell.y+data.cell.height/2+1.5,{align:'center'});
+            }
+            if(data.column.index===5){
+              const sc=state.risks[data.row.index];
+              if(!sc) return;
+              const c=sc.status==='Closed'?GREEN:sc.status==='Mitigating'?ORANGE:sc.status==='Accepted'?[150,150,150]:RED;
+              doc.setFillColor(...c.map(v=>Math.min(255,v+160)));
+              doc.roundedRect(data.cell.x+1,data.cell.y+1.5,data.cell.width-2,data.cell.height-3,1,1,'F');
+              doc.setTextColor(...c); doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+              doc.text(sc.status,data.cell.x+data.cell.width/2,data.cell.y+data.cell.height/2+1,{align:'center'});
+            }
+          }
+        },
+        didParseCell:(data)=>{
+          if(data.section==='body'&&(data.column.index===4||data.column.index===5)){
+            data.cell.text=[''];
+          }
+        }
+      });
+
+      // Risk Heatmap summary
+      const afterTable = doc.lastAutoTable.finalY + 8;
+      if(afterTable < PH-55){
+        label('Risk Heatmap Summary', M, afterTable+5);
+        const cellSz=8, hmX=M, hmY=afterTable+9;
+        for(let imp=5;imp>=1;imp--){
+          for(let lik=1;lik<=5;lik++){
+            const score=imp*lik;
+            const c=score>=15?RED:score>=8?ORANGE:GREEN;
+            const count=state.risks.filter(r=>r.likelihood===lik&&r.impact===imp).length;
+            doc.setFillColor(...c.map(v=>Math.min(255,v+100)));
+            doc.roundedRect(hmX+(lik-1)*(cellSz+1), hmY+(5-imp)*(cellSz+1), cellSz, cellSz, 1,1,'F');
+            if(count){ doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(...WHITE);
+              doc.text(String(count), hmX+(lik-1)*(cellSz+1)+cellSz/2, hmY+(5-imp)*(cellSz+1)+cellSz/2+1,{align:'center'}); }
+          }
+        }
+        // Legend
+        const lx=hmX+55;
+        [[RED,'High (≥15)'],[ORANGE,'Medium (8–14)'],[GREEN,'Low (<8)']].forEach(([c,lbl],i)=>{
+          doc.setFillColor(...c.map(v=>Math.min(255,v+100)));
+          doc.roundedRect(lx, afterTable+9+i*9, 6, 6, 1,1,'F');
+          doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(60,70,100);
+          doc.text(lbl, lx+9, afterTable+13.5+i*9);
+        });
+      }
+      addPageFooter();
+    }
+
+    // ══════════════════════════════════════════════════
+    // PAGE 9 — AI NARRATIVE (if present)
+    // ══════════════════════════════════════════════════
+    const narrativeEl = document.getElementById('narrative-output');
+    const swotAI = document.getElementById('swot-ai-output');
+    const pestleAI = document.getElementById('pestle-ai-output');
+    const kpiAI = document.getElementById('kpi-ai-output');
+    const riskAI = document.getElementById('risk-ai-output');
+    const advisorEl = document.getElementById('advisor-output');
+
+    const aiSections = [
+      {title:'AI Strategic Narrative', el:narrativeEl},
+      {title:'AI SWOT Synthesis', el:swotAI},
+      {title:'AI PESTLE Synthesis', el:pestleAI},
+      {title:'AI KPI Health Report', el:kpiAI},
+      {title:'AI Risk Mitigation Plan', el:riskAI},
+      {title:'AI Advisor — Latest Insight', el:advisorEl}
+    ].filter(s=>s.el && s.el.style.display!=='none' && s.el.innerText.trim().length>20);
+
+    if(aiSections.length){
+      newPage();
+      sectionHeader('AI-Generated Intelligence', 'Insights powered by Claude · Anthropic');
+      y = 30;
+      aiSections.forEach((section,si)=>{
+        if(y > PH-55){ newPage(); sectionHeader('AI Intelligence (continued)'); y=30; }
+        // Section chip
+        doc.setFillColor(...NAVY);
+        doc.roundedRect(M, y, CW, 10, 2,2,'F');
+        doc.setFillColor(...GOLD); doc.rect(M, y, 3, 10, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...GOLD2);
+        doc.text(section.title, M+7, y+6.5);
+        // AI badge
+        doc.setFillColor(0,150,120);
+        doc.roundedRect(PW-M-18, y+2, 15, 6, 1,1,'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(...WHITE);
+        doc.text('Claude AI', PW-M-10.5, y+6, {align:'center'});
+        y += 14;
+        const rawText = section.el.innerText.trim().replace(/\n{3,}/g,'\n\n');
+        const lines = doc.splitTextToSize(rawText, CW);
+        const neededH = lines.length * 4.2 + 6;
+        doc.setFillColor(245,250,252);
+        doc.roundedRect(M, y, CW, Math.min(neededH, PH-y-20), 2,2,'F');
+        doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(30,45,80);
+        let ty2 = y+6;
+        for(const line of lines){
+          if(ty2 > PH-22){ addPageFooter(); newPage(); sectionHeader('AI Intelligence (continued)'); y=30; ty2=36;
+            doc.setFillColor(245,250,252); doc.roundedRect(M,y,CW,PH-y-20,2,2,'F'); }
+          doc.text(line, M+5, ty2);
+          ty2 += 4.2;
+        }
+        y = ty2 + 8;
+      });
+      addPageFooter();
+    }
+
+    // ══════════════════════════════════════════════════
+    // BACK COVER
+    // ══════════════════════════════════════════════════
+    newPage();
+    doc.setFillColor(...NAVY); doc.rect(0,0,PW,PH,'F');
+    drawHex(hr, -Math.PI/6, 0.8, GOLD);
+    drawHex(hr*0.68, -Math.PI/6, 0.5, GOLD2);
+    const cp2 = hexPts6(hr*0.38,-Math.PI/6);
+    doc.setFillColor(...GOLD);
+    doc.lines(cp2.map((p,i)=>{const nx=cp2[(i+1)%6];return[nx[0]-p[0],nx[1]-p[1]];}),cp2[0][0],cp2[0][1],[1,1],'F',true);
+    doc.setFont('helvetica','bold'); doc.setFontSize(28); doc.setTextColor(...GOLD2);
+    doc.text('STRAT', PW/2-2, 108, {align:'right'});
+    doc.setFontSize(20); doc.setTextColor(...GOLD);
+    doc.text('OS', PW/2, 108);
+    doc.setFillColor(...GOLD); doc.rect(M+20,112,CW-40,0.6,'F');
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(130,150,200);
+    doc.text('Strategy Intelligence Platform', PW/2, 120, {align:'center'});
+    doc.setFontSize(8); doc.setTextColor(90,110,160);
+    doc.text('This report is confidential and prepared exclusively for', PW/2, 200, {align:'center'});
+    doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(...WHITE);
+    doc.text(state.canvas.orgName||'Your Organization', PW/2, 210, {align:'center'});
+    doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...GOLD);
+    doc.text('Designed & Architected by Krishnamurthy Kandregula · Made by Claude', PW/2, 260, {align:'center'});
+    doc.setFillColor(...NAVY); doc.rect(0,PH-10,PW,10,'F');
+    doc.setTextColor(...GOLD2); doc.setFontSize(7);
+    doc.text('StratOS · Strategy Intelligence Platform', PW/2, PH-3.5, {align:'center'});
+
+    // Save
+    const filename = `StratOS_${(state.canvas.orgName||'Strategy').replace(/\s+/g,'_')}_Report.pdf`;
+    doc.save(filename);
+    toast('PDF exported successfully!','success');
+  } catch(err){
+    console.error('PDF export error:', err);
+    toast('PDF export failed: '+err.message,'error');
+  } finally {
+    btn.disabled=false; btn.textContent='⬇ Export PDF';
+  }
+}
 function v(id){ return document.getElementById(id)?.value||''; }
 function sv(id,val){ const el=document.getElementById(id); if(el) el.value=val; }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
